@@ -1,0 +1,72 @@
+name: s3-bucket-teardown
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - destroy
+
+env:
+  AWS_BUCKET_NAME: rksmits.com
+  AWS_REGION: us-east-1
+  AWS_DOMAIN_NAME: rksmits.com
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform/s3-bucket-setup
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./terraform/s3-bucket-setup
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Empty S3 Bucket
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        run: |
+          aws s3 rm s3://${{ env.AWS_BUCKET_NAME }} --recursive
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+
+      - name: Terraform Plan
+        if: ${{ github.event.inputs.action == 'plan' }}
+        run: terraform plan -destroy -var="bucket_name=${{ env.AWS_BUCKET_NAME }}" -var="region=${{ env.AWS_REGION }}" -var="domain_name=${{ env.AWS_DOMAIN_NAME }}"
+        working-directory: ./terraform/s3-bucket-setup
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Destroy
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        working-directory: ./terraform/s3-bucket-setup
+        run: |
+          terraform destroy -auto-approve -var="bucket_name=${{ env.AWS_BUCKET_NAME }}" -var="region=${{ env.AWS_REGION }}" -var="domain_name=${{ env.AWS_DOMAIN_NAME }}"
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}

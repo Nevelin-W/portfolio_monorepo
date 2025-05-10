@@ -1,0 +1,61 @@
+name: ssl-tls-certificate-destory
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose between terraform plan or destroy'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - destroy
+
+env:
+  DOMAIN_NAME: rksmits.com
+  AWS_REGION: us-east-1
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform/ssl-tls-certificate
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./terraform/ssl-tls-certificate
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Plan
+        if: ${{ github.event.inputs.action == 'plan' }}
+        working-directory: ./terraform/ssl-tls-certificate
+        run: terraform plan -destroy -var="domain_name=${{ env.DOMAIN_NAME }}" -var="region=${{ env.AWS_REGION }}"
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+      
+      - name: Terraform destroy
+        if: ${{ github.event.inputs.action == 'destroy' }}
+        working-directory: ./terraform/ssl-tls-certificate
+        run: terraform destroy -auto-approve -var="domain_name=${{ env.DOMAIN_NAME }}" -var="region=${{ env.AWS_REGION }}"
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}

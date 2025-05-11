@@ -1,43 +1,66 @@
 # Base image
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
-# Set non-interactive mode for apt-get to avoid prompts during installation
+# Build arguments
+ARG FLUTTER_VERSION=stable
+ARG AWS_CLI_VERSION=2.15.0
+
+# Set non-interactive mode for apt-get
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install prerequisite packages and set up AWS CLI
+# Set environment variables
+ENV PATH="/flutter/bin:${PATH}" \
+    LC_ALL=en_US.UTF-8 \
+    LANG=en_US.UTF-8
+
+# Install prerequisite packages and set up tools
 RUN apt-get update && \
-    apt-get install -y \
-        tzdata \
-        keyboard-configuration \
+    apt-get install -y --no-install-recommends \
         curl \
+        git \
         unzip \
+        xz-utils \
+        zip \
+        libglu1-mesa \
+        locales \
+        ca-certificates \
         groff \
         less \
-        git && \
-    # Download and install AWS CLI
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+        openssh-client \
+        python3 \
+        python3-pip && \
+    # Set up locale
+    localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 && \
+    # Clean up
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION}.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && \
     ./aws/install && \
-    # Clean up
     rm -rf awscliv2.zip aws
 
-# Clone the Flutter repository from the master branch
-RUN git clone -b master https://github.com/flutter/flutter.git /flutter
+# Clone the Flutter repository with specified version
+RUN git clone -b ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /flutter && \
+    flutter precache && \
+    flutter doctor && \
+    flutter config --enable-web
 
-# Set Flutter environment
-ENV PATH="/flutter/bin:${PATH}"
-
-# Install Flutter dependencies
-RUN flutter doctor
-
-# Set working directory
-WORKDIR /tmp
+# Create app directory
+WORKDIR /app
 
 # Copy the build script into the container
-COPY ./docker/build.sh /tmp/build.sh
+COPY ./docker/build.sh /usr/local/bin/build.sh
+RUN chmod +x /usr/local/bin/build.sh
 
-# Give execution permission to the build script
-RUN chmod +x /tmp/build.sh
+# # Expose port for testing (optional)
+# EXPOSE 8080
 
-# Keep the container running
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD flutter doctor || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["/bin/bash"]
 CMD ["tail", "-f", "/dev/null"]

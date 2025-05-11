@@ -60,7 +60,8 @@ jobs:
         id: version_tag
         run: |
           VERSION_INPUT="${{ github.event.inputs.image_tag }}"
-          DATE_TIME=$(date +'%d-%m-%Y-%H-%M')
+          TZ="Europe/Helsinki"
+          DATE_TIME=$(TZ=$TZ date +'%d-%m-%Y-%H-%M')
           FULL_TAG="${VERSION_INPUT}-${DATE_TIME}"
           echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT
 

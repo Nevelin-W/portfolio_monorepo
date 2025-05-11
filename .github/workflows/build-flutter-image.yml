@@ -9,8 +9,8 @@ on:
         required: false
         type: string
       image_tag:
-        description: 'Docker image tag'
-        default: 'latest'
+        description: 'Version tag (e.g. v1.2.3)'
+        default: 'v0.0.1'
         required: false
         type: string
       dockerfile_path:
@@ -31,6 +31,8 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.version_tag.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -56,13 +58,22 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Set image tag from version and date
+        id: version_tag
+        run: |
+          VERSION_INPUT="${{ github.event.inputs.image_tag }}"
+          TZ="Europe/Helsinki"
+          DATE_TIME=$(TZ=$TZ date +'%d-%m-%Y-%H-%M')
+          FULL_TAG="${VERSION_INPUT}-${DATE_TIME}"
+          echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT
+
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ github.event.inputs.image_tag || 'latest' }}
+            type=raw,value=${{ steps.version_tag.outputs.tag }}
             type=sha,format=short
             type=ref,event=branch
 
@@ -85,3 +96,7 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Output Docker image tag
+        run: echo 'Docker image tag -> ${{ steps.version_tag.outputs.tag }}'
+        

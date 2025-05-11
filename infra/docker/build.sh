@@ -28,75 +28,56 @@ info() { log "INFO" "$@"; }
 debug() { log "DEBUG" "$@"; }
 success() { log "SUCCESS" "$@"; }
 
-# Function to check if AWS credentials are available
+# Check AWS credentials
 check_aws_credentials() {
   info "Checking AWS credentials..."
   if ! aws sts get-caller-identity &>/dev/null; then
     error "AWS credentials are not configured properly"
-    error "Please set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and optionally AWS_SESSION_TOKEN"
     exit 1
   fi
   success "AWS credentials validated"
 }
 
-# Clone the repository
+# Clone repo
 clone_repo() {
   info "Cloning repository: $REPO_URL branch: $REPO_BRANCH"
   local clone_dir="/app/$REPO_NAME"
-  # Remove if exists
-  if [ -d "$clone_dir" ]; then
-    rm -rf "$clone_dir"
-  fi
-  
+  [ -d "$clone_dir" ] && rm -rf "$clone_dir"
   git clone --branch "$REPO_BRANCH" --single-branch "$REPO_URL" "$clone_dir"
   success "Repository cloned successfully"
 }
 
-# Build Flutter project
+# Build project
 build_project() {
   local project_dir="/app/$REPO_NAME/$PROJECT_PATH"
   info "Building Flutter project at $project_dir"
-  
   cd "$project_dir"
-  
-  # Install dependencies
   info "Installing dependencies..."
   if [ "$VERBOSE" == "true" ]; then
     flutter pub get
   else
     flutter pub get > /dev/null 2>&1
   fi
-  
-  # Build for target platform
   info "Building Flutter $BUILD_TYPE..."
   if [ "$VERBOSE" == "true" ]; then
-    flutter build "$BUILD_TYPE" --release
+    flutter build $BUILD_TYPE --release
   else
-    flutter build "$BUILD_TYPE" --release > /dev/null 2>&1
+    flutter build $BUILD_TYPE --release > /dev/null 2>&1
   fi
-  
   success "Flutter build completed successfully"
 }
 
 # Deploy to S3
 deploy_to_s3() {
   info "Starting deployment to S3 bucket: $S3_BUCKET"
-  
-  # Check if the bucket exists
   if ! aws s3api head-bucket --bucket "$S3_BUCKET" --region "$AWS_REGION" 2>/dev/null; then
-    error "Bucket $S3_BUCKET does not exist or you don't have access to it"
+    error "Bucket $S3_BUCKET does not exist or access denied"
     exit 1
   fi
-  
+
   local build_dir="/app/$REPO_NAME/$PROJECT_PATH/$OUTPUT_DIR"
-  
-  # Check if build directory exists
-  if [ ! -d "$build_dir" ]; then
-    error "Build directory not found: $build_dir"
-    exit 1
-  fi
-  
-  # Empty the bucket if necessary
+  [ ! -d "$build_dir" ] && { error "Build directory not found: $build_dir"; exit 1; }
+
   info "Emptying bucket $S3_BUCKET..."
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would empty bucket $S3_BUCKET"
@@ -107,58 +88,54 @@ deploy_to_s3() {
       aws s3 rm "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION" > /dev/null 2>&1
     fi
   fi
-  
-  # Upload build files
+
   info "Uploading build files to S3..."
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would upload files from $build_dir to s3://$S3_BUCKET/"
   else
-    aws s3 cp "$build_dir" "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION" $([ "$VERBOSE" == "true" ] || echo "> /dev/null 2>&1")
+    if [ "$VERBOSE" == "true" ]; then
+      aws s3 cp "$build_dir" "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION"
+    else
+      aws s3 cp "$build_dir" "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION" > /dev/null 2>&1
+    fi
     success "Files uploaded successfully to S3"
   fi
 }
 
-# Invalidate CloudFront cache
+# CloudFront invalidation
 invalidate_cloudfront() {
-  if [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
-    info "No CloudFront distribution ID provided, skipping invalidation"
-    return
-  fi
-  
+  [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ] && { info "No CloudFront distribution ID provided, skipping"; return; }
+
   info "Invalidating CloudFront cache for distribution: $CLOUDFRONT_DISTRIBUTION_ID"
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would invalidate CloudFront cache for paths: /*"
   else
-    aws cloudfront create-invalidation \
-      --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
-      --paths "/*" \
-      --region "$AWS_REGION" \
-      $([ "$VERBOSE" == "true" ] || echo "> /dev/null 2>&1")
+    if [ "$VERBOSE" == "true" ]; then
+      aws cloudfront create-invalidation \
+        --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+        --paths "/*" \
+        --region "$AWS_REGION"
+    else
+      aws cloudfront create-invalidation \
+        --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+        --paths "/*" \
+        --region "$AWS_REGION" > /dev/null 2>&1
+    fi
     success "CloudFront cache invalidated successfully"
   fi
 }
 
-# Main function
+# Main
 main() {
   info "Starting deployment process"
-  
-  # Validate required parameters
-  if [ -z "$S3_BUCKET" ]; then
-    error "S3_BUCKET environment variable is required"
-    exit 1
-  fi
-  
-  # Check AWS credentials
+  [ -z "$S3_BUCKET" ] && { error "S3_BUCKET environment variable is required"; exit 1; }
+
   check_aws_credentials
-  
-  # Main workflow
   clone_repo
   build_project
   deploy_to_s3
   invalidate_cloudfront
-  
   success "Deployment completed successfully!"
 }
 
-# Execute main function
 main "$@"

@@ -28,7 +28,7 @@ on:
         default: 'latest'
         type: choice
         options:
-        - v0.0.1-12-05-2025-01-45
+          - v0.0.1-12-05-2025-01-45
       dry_run:
         description: 'Run in dry-run mode (no actual deployment)'
         required: false

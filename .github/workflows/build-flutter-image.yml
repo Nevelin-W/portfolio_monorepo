@@ -59,7 +59,7 @@ jobs:
       - name: Set image tag from version and date
         id: version_tag
         run: |
-          VERSION_INPUT="${{ steps.version_tag.outputs.tag }}"
+          VERSION_INPUT="${{ github.event.inputs.image_tag }}"
           DATE=$(date +'%d-%m-%Y')
           FULL_TAG="${VERSION_INPUT}-${DATE}"
           echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT

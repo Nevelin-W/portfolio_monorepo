@@ -15,7 +15,7 @@ on:
         type: string
       dockerfile_path:
         description: 'Path to Dockerfile'
-        default: 'portfolio_monorepo/infra/docker/Dockerfile'
+        default: 'infra/docker/Dockerfile'
         required: false
         type: string
   # push:

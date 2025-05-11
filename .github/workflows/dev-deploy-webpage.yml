@@ -20,8 +20,16 @@ on:
       project_path:
         description: 'Path to Flutter project within repository'
         required: false
-        default: 'myportfolio'
+        default: 'apps/myportfolio'
         type: string
+      image_version:
+        description: 'Version of docker image to use'
+        required: false
+        default: 'latest'
+        type: choice
+        options:
+        - latest
+        - test_001
       dry_run:
         description: 'Run in dry-run mode (no actual deployment)'
         required: false
@@ -32,7 +40,7 @@ on:
         type: boolean
 
 env:
-  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:latest
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || 'latest' }}
   AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
 jobs:

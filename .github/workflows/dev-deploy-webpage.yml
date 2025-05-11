@@ -1,4 +1,5 @@
 name: DEV Deploy Flutter Web to S3
+
 on:
   workflow_dispatch:
     inputs:
@@ -36,10 +37,11 @@ on:
         description: 'Enable verbose output'
         required: false
         type: boolean
+
 env:
-  REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || 'latest' }}
   AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -50,29 +52,10 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-          
-      # Set up Docker layer caching
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Log in to Docker Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          
-      # Pull Docker image with caching
-      - name: Pull Docker image with caching
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          load: true
-          tags: ${{ env.DOCKER_IMAGE }}
-          pull: true
-          cache-from: type=gha,scope=flutter-image-${{ github.event.inputs.image_version }}
-          cache-to: type=gha,scope=flutter-image-${{ github.event.inputs.image_version }},mode=max
-          
+
+      - name: Pull Flutter Docker image
+        run: docker pull ${{ env.DOCKER_IMAGE }}
+
       - name: Run deployment in Docker container
         run: |
           docker run --rm \

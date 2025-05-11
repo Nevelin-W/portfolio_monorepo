@@ -51,7 +51,7 @@ RUN git clone -b ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /flut
 WORKDIR /app
 
 # Copy the build script into the container
-COPY ./docker/build.sh /usr/local/bin/build.sh
+COPY infra/docker/build.sh /usr/local/bin/build.sh
 RUN chmod +x /usr/local/bin/build.sh
 
 # # Expose port for testing (optional)

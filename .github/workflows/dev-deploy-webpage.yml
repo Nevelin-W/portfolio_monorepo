@@ -1,0 +1,65 @@
+name: Deploy Flutter Web to S3
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 'Repository URL to clone'
+        required: false
+        default: 'https://github.com/Nevelin-W/portfolio_monorepo.git'
+        type: string
+      branch:
+        description: 'Branch to clone'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - main
+          - dev
+          - prd
+      project_path:
+        description: 'Path to Flutter project within repository'
+        required: false
+        default: 'myportfolio'
+        type: string
+      dry_run:
+        description: 'Run in dry-run mode (no actual deployment)'
+        required: false
+        type: boolean
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        type: boolean
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:latest
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pull Flutter Docker image
+        run: docker pull ${{ env.DOCKER_IMAGE }}
+
+      - name: Run deployment in Docker container
+        run: |
+          docker run --rm \
+            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            -e AWS_REGION=${{ env.AWS_REGION }} \
+            -e S3_BUCKET=${{ secrets.S3_BUCKET }} \
+            -e CLOUDFRONT_DISTRIBUTION_ID=${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            -e REPO_URL=${{ github.event.inputs.repository }} \
+            -e REPO_BRANCH=${{ github.event.inputs.branch }} \
+            -e PROJECT_PATH=${{ github.event.inputs.project_path }} \
+            -e DRY_RUN=${{ github.event.inputs.dry_run }} \
+            -e VERBOSE=${{ github.event.inputs.verbose }} \
+            ${{ env.DOCKER_IMAGE }} /usr/local/bin/build.sh

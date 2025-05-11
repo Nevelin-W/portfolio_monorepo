@@ -101,7 +101,11 @@ deploy_to_s3() {
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would empty bucket $S3_BUCKET"
   else
-    aws s3 rm "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION" $([ "$VERBOSE" == "true" ] || echo "> /dev/null 2>&1")
+    if [ "$VERBOSE" == "true" ]; then
+      aws s3 rm "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION"
+    else
+      aws s3 rm "s3://$S3_BUCKET/" --recursive --region "$AWS_REGION" > /dev/null 2>&1
+    fi
   fi
   
   # Upload build files

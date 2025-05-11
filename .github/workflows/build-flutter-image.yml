@@ -9,8 +9,8 @@ on:
         required: false
         type: string
       image_tag:
-        description: 'Docker image tag'
-        default: 'latest'
+        description: 'Version tag (e.g. v1.2.3)'
+        default: 'v0.0.1'
         required: false
         type: string
       dockerfile_path:
@@ -55,6 +55,14 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set image tag from version and date
+        id: version_tag
+        run: |
+          VERSION_INPUT="${{ steps.version_tag.outputs.tag }}"
+          DATE=$(date +'%d-%m-%Y')
+          FULL_TAG="${VERSION_INPUT}-${DATE}"
+          echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT
 
       - name: Extract metadata for Docker
         id: meta

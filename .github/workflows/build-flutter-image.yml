@@ -60,8 +60,8 @@ jobs:
         id: version_tag
         run: |
           VERSION_INPUT="${{ github.event.inputs.image_tag }}"
-          DATE=$(date +'%d-%m-%Y')
-          FULL_TAG="${VERSION_INPUT}-${DATE}"
+          DATE_TIME=$(date +'%d-%m-%Y-%H-%M')
+          FULL_TAG="${VERSION_INPUT}-${DATE_TIME}"
           echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT
 
       - name: Extract metadata for Docker

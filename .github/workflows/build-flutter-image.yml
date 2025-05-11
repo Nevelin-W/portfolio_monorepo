@@ -1,106 +1,102 @@
-name: DEV Deploy Flutter Web to S3
+name: Build and Publish Flutter Image
+
 on:
   workflow_dispatch:
     inputs:
-      repository:
-        description: 'Repository URL to clone'
+      flutter_version:
+        description: 'Flutter version/branch to use'
+        default: 'stable'
         required: false
-        default: 'https://github.com/Nevelin-W/portfolio_monorepo.git'
         type: string
-      branch:
-        description: 'Branch to clone'
+      image_tag:
+        description: 'Version tag (e.g. v1.2.3)'
+        default: 'v0.0.1'
         required: false
-        default: 'dev'
-        type: choice
-        options:
-          - main
-          - dev
-          - prd
-      project_path:
-        description: 'Path to Flutter project within repository'
-        required: false
-        default: 'apps/myportfolio'
         type: string
-      image_version:
-        description: 'Version of docker image to use'
+      dockerfile_path:
+        description: 'Path to Dockerfile'
+        default: 'infra/docker/Dockerfile'
         required: false
-        default: 'latest'
-        type: choice
-        options:
-          - v0.0.1-12-05-2025-01-45
-      dry_run:
-        description: 'Run in dry-run mode (no actual deployment)'
-        required: false
-        type: boolean
-      verbose:
-        description: 'Enable verbose output'
-        required: false
-        type: boolean
+        type: string
+  # push:
+  #   branches: [ main, master ]
+  #   paths:
+  #     - 'docker/**'
+
 env:
-  DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
-  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || 'latest' }}
-  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
+  IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME || 'flutter-container' }}
+  PLATFORMS: linux/amd64,linux/arm64
+
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.version_tag.outputs.tag }}
     steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-      
-      # Set up Docker Buildx for better caching capabilities
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        
-      # Log in to Docker Registry
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
       - name: Log in to Docker Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
+          registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      # Cache Docker layers
-      - name: Cache Docker images
-        uses: actions/cache@v3
+
+      - name: Set image tag from version and date
+        id: version_tag
+        run: |
+          VERSION_INPUT="${{ github.event.inputs.image_tag }}"
+          TZ="Europe/Helsinki"
+          DATE_TIME=$(TZ=$TZ date +'%d-%m-%Y-%H-%M')
+          FULL_TAG="${VERSION_INPUT}-${DATE_TIME}"
+          echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          path: /tmp/.docker-cache
-          key: ${{ runner.os }}-docker-${{ github.event.inputs.image_version }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
-      
-      # Pull Flutter Docker image with cache
-      - name: Pull Flutter Docker image
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version_tag.outputs.tag }}
+            type=sha,format=short
+            type=ref,event=branch
+
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          push: false
-          load: true
-          tags: ${{ env.DOCKER_IMAGE }}
-          platforms: linux/amd64
-          cache-from: type=local,src=/tmp/.docker-cache
-          cache-to: type=local,dest=/tmp/.docker-cache-new
-          pull: true  # Always attempt to pull the latest version of the specified tag
-      
-      # Move cache for next run (fixing cache issue)
+          context: .
+          file: ${{ github.event.inputs.dockerfile_path || './docker/Dockerfile' }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          platforms: ${{ env.PLATFORMS }}
+          build-args: |
+            FLUTTER_VERSION=${{ github.event.inputs.flutter_version || 'stable' }}
+
+      # Temp fix for https://github.com/docker/build-push-action/issues/252
       - name: Move cache
         run: |
-          rm -rf /tmp/.docker-cache
-          mv /tmp/.docker-cache-new /tmp/.docker-cache || true
-      
-      - name: Run deployment in Docker container
-        run: |
-          docker run --rm \
-            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            -e AWS_REGION=${{ env.AWS_REGION }} \
-            -e S3_BUCKET=${{ secrets.DEV_S3_BUCKET }} \
-            -e CLOUDFRONT_DISTRIBUTION_ID=${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }} \
-            -e REPO_URL=${{ github.event.inputs.repository }} \
-            -e REPO_BRANCH=${{ github.event.inputs.branch }} \
-            -e PROJECT_PATH=${{ github.event.inputs.project_path }} \
-            -e DRY_RUN=${{ github.event.inputs.dry_run }} \
-            -e VERBOSE=${{ github.event.inputs.verbose }} \
-            ${{ env.DOCKER_IMAGE }} /usr/local/bin/build.sh
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Output Docker image tag
+        run: echo 'Docker image tag -> ${{ steps.version_tag.outputs.tag }}'
+        

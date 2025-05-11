@@ -31,6 +31,8 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.version_tag.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,3 +96,7 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Output Docker image tag
+        run: echo 'Docker image tag -> ${{ steps.version_tag.outputs.tag }}'
+      

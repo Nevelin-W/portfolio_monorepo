@@ -69,7 +69,11 @@ build_project() {
   
   # Build for target platform
   info "Building Flutter $BUILD_TYPE..."
-  flutter build $BUILD_TYPE --release $([ "$VERBOSE" == "true" ] || echo "> /dev/null 2>&1")
+  if [ "$VERBOSE" == "true" ]; then
+    flutter build "$BUILD_TYPE" --release
+  else
+    flutter build "$BUILD_TYPE" --release > /dev/null 2>&1
+  fi
   
   success "Flutter build completed successfully"
 }

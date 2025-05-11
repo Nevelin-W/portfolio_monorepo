@@ -70,7 +70,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ github.event.inputs.image_tag || 'latest' }}
+            type=raw,value=${{ steps.version_tag.outputs.tag }}
             type=sha,format=short
             type=ref,event=branch
 

@@ -143,13 +143,13 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
         
-      - name: Fetch current function
+- name: Fetch current function
         id: get-function
         run: |
           echo "Fetching function $FUNCTION_NAME..."
           
           # Attempt to describe the function
-          if ! aws cloudfront get-function --name "$FUNCTION_NAME" --stage DEVELOPMENT > current.json 2>&1; then
+          if ! aws cloudfront describe-function --name "$FUNCTION_NAME" --stage DEVELOPMENT > current.json 2>&1; then
             echo "Error fetching function. Check if it exists and if your credentials have permission."
             exit 1
           fi
@@ -163,12 +163,15 @@ jobs:
           
           echo "etag=$ETAG" >> $GITHUB_OUTPUT
           
-          # Extract function code
-          jq -r '.FunctionSummary.FunctionMetadata.FunctionConfig.Comment' current.json > function_comment.txt
-          jq -r '.FunctionSummary.FunctionMetadata.LatestStageFunction.Code' current.json | base64 --decode > current_code.js
+          # Get the actual function code
+          aws cloudfront get-function --name "$FUNCTION_NAME" --stage DEVELOPMENT --query 'FunctionCode' --output text | base64 --decode > current_code.js
           
           # Make backup before changes
           cp current_code.js current_code.backup.js
+          
+          # Debug: Show the first few bytes of the file
+          echo "First bytes of decoded function code:"
+          hexdump -C current_code.js | head -2
       
       - name: Parse and update function code
         id: update-code
@@ -229,7 +232,6 @@ jobs:
             # Replace in config object
             if [[ $(echo "$CONFIG_BLOCK" | grep -c "$CONFIG_KEY") -gt 0 ]]; then
               # Update existing key
-              
               sed -i -E "s/${CONFIG_KEY}: \[[^\]]*\]/${CONFIG_KEY}: ${ESCAPED_ARRAY}/g" current_code.js
             else
               # Add new key to config
@@ -252,6 +254,11 @@ jobs:
       - name: Test function code syntax
         run: |
           echo "Testing JavaScript syntax..."
+          # Check the file encoding and content before testing
+          file current_code.js
+          head -n 10 current_code.js
+          
+          # Test syntax
           node --check current_code.js || {
             echo "JavaScript syntax check failed. Using backup and aborting."
             cp current_code.backup.js current_code.js

@@ -164,13 +164,21 @@ jobs:
           echo "etag=$ETAG" >> $GITHUB_OUTPUT
           
           # Get the actual function code
-          aws cloudfront get-function --name "$FUNCTION_NAME" --stage DEVELOPMENT > function_details.json
-          jq -r '.FunctionCode' function_details.json | base64 --decode > current_code.js
+          aws cloudfront get-function \
+          --name "$FUNCTION_NAME" \
+          --stage DEVELOPMENT \
+          --outfile function_code.zip
+        
+          # Unzip the code
+          unzip -o function_code.zip -d function_code_dir
           
-          # Make backup before changes
+          # Assuming the JS file is named index.js inside
+          cp function_code_dir/index.js current_code.js
+          
+          # Backup the code
           cp current_code.js current_code.backup.js
           
-          # Debug: Show the first few bytes of the file
+          # Show debug output
           echo "First bytes of decoded function code:"
           hexdump -C current_code.js | head -2
       

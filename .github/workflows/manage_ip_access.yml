@@ -1,0 +1,300 @@
+name: Manage IP Access Rules
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'add'
+        type: choice
+        options:
+          - add
+          - remove
+          - replace
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          # - staging
+          # - prod
+      ip_type:
+        description: 'IP address type'
+        required: true
+        default: 'individual'
+        type: choice
+        options:
+          - individual
+          - cidr
+      ips:
+        description: 'IP addresses or CIDR blocks (comma-separated)'
+        required: true
+        type: string
+
+jobs:
+  validate-input:
+    runs-on: ubuntu-latest
+    outputs:
+      valid: ${{ steps.validate.outputs.valid }}
+      ips_json: ${{ steps.validate.outputs.ips_json }}
+    steps:
+      - name: Validate input
+        id: validate
+        run: |
+          IPS="${{ github.event.inputs.ips }}"
+          IP_TYPE="${{ github.event.inputs.ip_type }}"
+          
+          # Split and trim IPs
+          IPS_ARRAY=($(echo "$IPS" | tr ',' '\n'))
+          
+          # Validate IPs based on type
+          VALID_IPS=()
+          for IP in "${IPS_ARRAY[@]}"; do
+            IP=$(echo "$IP" | xargs)  # Trim whitespace
+            
+            if [[ "$IP_TYPE" == "individual" ]]; then
+              # Simple IPv4 validation regex
+              if [[ $IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                # Further validate each octet is <= 255
+                VALID=true
+                IFS='.' read -ra OCTETS <<< "$IP"
+                for OCTET in "${OCTETS[@]}"; do
+                  if [[ $OCTET -gt 255 ]]; then
+                    VALID=false
+                    break
+                  fi
+                done
+                
+                if [[ "$VALID" == "true" ]]; then
+                  VALID_IPS+=("$IP")
+                else
+                  echo "Invalid IP address: $IP"
+                fi
+              else
+                echo "Invalid IP format: $IP"
+              fi
+            elif [[ "$IP_TYPE" == "cidr" ]]; then
+              # CIDR validation regex
+              if [[ $IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+                # Validate IP portion
+                PREFIX="${IP#*/}"
+                IP_PART="${IP%/*}"
+                
+                if [[ $PREFIX -le 32 ]]; then
+                  VALID=true
+                  IFS='.' read -ra OCTETS <<< "$IP_PART"
+                  for OCTET in "${OCTETS[@]}"; do
+                    if [[ $OCTET -gt 255 ]]; then
+                      VALID=false
+                      break
+                    fi
+                  done
+                  
+                  if [[ "$VALID" == "true" ]]; then
+                    VALID_IPS+=("$IP")
+                  else
+                    echo "Invalid CIDR IP portion: $IP"
+                  fi
+                else
+                  echo "Invalid CIDR prefix (must be <= 32): $IP"
+                fi
+              else
+                echo "Invalid CIDR format: $IP"
+              fi
+            fi
+          done
+          
+          # Convert valid IPs to JSON
+          JSON_IPS=$(printf '"%s",' "${VALID_IPS[@]}" | sed 's/,$//')
+          JSON_IPS="[$JSON_IPS]"
+          
+          # Check if we have any valid IPs
+          if [[ ${#VALID_IPS[@]} -eq 0 ]]; then
+            echo "No valid IPs provided"
+            echo "valid=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found ${#VALID_IPS[@]} valid IP entries"
+            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "ips_json=$JSON_IPS" >> $GITHUB_OUTPUT
+          fi
+
+  update-function:
+    needs: validate-input
+    if: needs.validate-input.outputs.valid == 'true'
+    runs-on: ubuntu-latest
+    env:
+      FUNCTION_NAME: "ip-restriction-${{ github.event.inputs.environment }}"
+      IP_TYPE: ${{ github.event.inputs.ip_type }}
+      ACTION: ${{ github.event.inputs.action }}
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      
+      - name: Install jq
+        run: sudo apt-get install -y jq
+        
+      - name: Fetch current function
+        id: get-function
+        run: |
+          echo "Fetching function $FUNCTION_NAME..."
+          
+          # Attempt to describe the function
+          if ! aws cloudfront describe-function --name "$FUNCTION_NAME" > current.json 2>&1; then
+            echo "Error fetching function. Check if it exists and if your credentials have permission."
+            exit 1
+          fi
+          
+          # Extract ETag
+          ETAG=$(jq -r '.ETag' current.json)
+          if [ -z "$ETAG" ] || [ "$ETAG" == "null" ]; then
+            echo "Failed to extract ETag"
+            exit 1
+          fi
+          
+          echo "etag=$ETAG" >> $GITHUB_OUTPUT
+          
+          # Extract function code
+          jq -r '.FunctionSummary.FunctionMetadata.FunctionConfig.Comment' current.json > function_comment.txt
+          jq -r '.FunctionSummary.FunctionMetadata.LatestStageFunction.Code' current.json | base64 --decode > current_code.js
+          
+          # Make backup before changes
+          cp current_code.js current_code.backup.js
+      
+      - name: Parse and update function code
+        id: update-code
+        run: |
+          NEW_IPS='${{ needs.validate-input.outputs.ips_json }}'
+          echo "New IPs to $ACTION: $NEW_IPS"
+          
+          # Check which IP list we're modifying based on type
+          if [[ "$IP_TYPE" == "individual" ]]; then
+            CONFIG_KEY="allowedIPs"
+          else
+            CONFIG_KEY="allowedCIDRs"
+          fi
+          
+          # Extract the current configuration
+          CONFIG_REGEX="var config = \{([^}]*)\};"
+          if [[ $(grep -c "var config = {" current_code.js) -gt 0 ]]; then
+            # Modern format with config object
+            CONFIG_BLOCK=$(grep -zoP "var config = \{[^}]*\};" current_code.js | tr '\0' '\n')
+            
+            # Extract the specific array we need to modify
+            CURRENT_ARRAY_REGEX="${CONFIG_KEY}: (\[[^\]]*\])"
+            if [[ $(echo "$CONFIG_BLOCK" | grep -c "$CONFIG_KEY") -gt 0 ]]; then
+              CURRENT_ARRAY=$(echo "$CONFIG_BLOCK" | grep -oP "${CONFIG_KEY}: \K(\[[^\]]*\])")
+            else
+              # Key doesn't exist yet, add it
+              CURRENT_ARRAY="[]"
+            fi
+          else
+            # Legacy format - look for standalone arrays
+            LEGACY_REGEX="var ${CONFIG_KEY} = (\[[^\]]*\]);"
+            if [[ $(grep -c "var ${CONFIG_KEY} = " current_code.js) -gt 0 ]]; then
+              CURRENT_ARRAY=$(grep -oP "var ${CONFIG_KEY} = \K(\[[^\]]*\]);" current_code.js)
+            else
+              CURRENT_ARRAY="[]"
+            fi
+          fi
+          
+          echo "Current array: $CURRENT_ARRAY"
+          
+          # Process the action
+          if [[ "$ACTION" == "add" ]]; then
+            # Merge and deduplicate
+            UPDATED_ARRAY=$(echo "$CURRENT_ARRAY" "$NEW_IPS" | jq -s 'add | unique')
+          elif [[ "$ACTION" == "remove" ]]; then
+            # Remove the specified IPs
+            UPDATED_ARRAY=$(echo "$CURRENT_ARRAY" "$NEW_IPS" | jq -s '.[0] - .[1]')
+          elif [[ "$ACTION" == "replace" ]]; then
+            # Replace with new IPs
+            UPDATED_ARRAY="$NEW_IPS"
+          fi
+          
+          echo "Updated array: $UPDATED_ARRAY"
+          
+          # Update the function code
+          if [[ $(grep -c "var config = {" current_code.js) -gt 0 ]]; then
+            # Replace in config object
+            if [[ $(echo "$CONFIG_BLOCK" | grep -c "$CONFIG_KEY") -gt 0 ]]; then
+              # Update existing key
+              sed -i -E "s/${CONFIG_KEY}: \[[^\]]*\]/${CONFIG_KEY}: ${UPDATED_ARRAY}/g" current_code.js
+            else
+              # Add new key to config
+              sed -i -E "s/var config = \{/var config = \{\n        ${CONFIG_KEY}: ${UPDATED_ARRAY},/g" current_code.js
+            fi
+          else
+            # Update legacy format
+            if [[ $(grep -c "var ${CONFIG_KEY} = " current_code.js) -gt 0 ]]; then
+              sed -i -E "s/var ${CONFIG_KEY} = \[[^\]]*\];/var ${CONFIG_KEY} = ${UPDATED_ARRAY};/g" current_code.js
+            else
+              # Add new variable definition
+              sed -i -E "0,/var /s/var /var ${CONFIG_KEY} = ${UPDATED_ARRAY};\nvar /" current_code.js
+            fi
+          fi
+          
+          # Generate comment for the update
+          COMMENT="Updated ${CONFIG_KEY} via GitHub Actions (${ACTION}) on $(date)"
+          echo "comment=$COMMENT" >> $GITHUB_OUTPUT
+          
+      - name: Test function code syntax
+        run: |
+          echo "Testing JavaScript syntax..."
+          node --check current_code.js || {
+            echo "JavaScript syntax check failed. Using backup and aborting."
+            cp current_code.backup.js current_code.js
+            exit 1
+          }
+      
+      - name: Update CloudFront Function
+        run: |
+          echo "Updating CloudFront Function..."
+          
+          # Prepare comment
+          ORIGINAL_COMMENT=$(cat function_comment.txt)
+          UPDATED_COMMENT="${{ steps.update-code.outputs.comment }}"
+          
+          # Keep original comment if possible and append our update info
+          if [[ -n "$ORIGINAL_COMMENT" && "$ORIGINAL_COMMENT" != "null" ]]; then
+            FINAL_COMMENT="$ORIGINAL_COMMENT - $UPDATED_COMMENT"
+          else
+            FINAL_COMMENT="$UPDATED_COMMENT"
+          fi
+          
+          # Update the function
+          aws cloudfront update-function \
+            --name "$FUNCTION_NAME" \
+            --if-match "${{ steps.get-function.outputs.etag }}" \
+            --function-code fileb://current_code.js \
+            --function-config "{\"Comment\": \"$FINAL_COMMENT\", \"Runtime\": \"cloudfront-js-1.0\"}" || {
+              echo "Function update failed. Aborting."
+              exit 1
+            }
+            
+          echo "Function updated successfully!"
+          
+      - name: Publish function
+        run: |
+          # Get the new ETag after update
+          aws cloudfront describe-function --name "$FUNCTION_NAME" > updated.json
+          NEW_ETAG=$(jq -r '.ETag' updated.json)
+          
+          echo "Publishing function..."
+          aws cloudfront publish-function \
+            --name "$FUNCTION_NAME" \
+            --if-match "$NEW_ETAG" || {
+              echo "Function publish failed."
+              exit 1
+            }
+            
+          echo "Function published successfully!"

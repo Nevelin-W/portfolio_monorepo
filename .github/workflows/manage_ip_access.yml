@@ -164,7 +164,8 @@ jobs:
           echo "etag=$ETAG" >> $GITHUB_OUTPUT
           
           # Get the actual function code
-          aws cloudfront get-function --name "$FUNCTION_NAME" --stage DEVELOPMENT --query 'FunctionCode' --output text | base64 --decode > current_code.js
+          aws cloudfront get-function --name "$FUNCTION_NAME" --stage DEVELOPMENT > function_details.json
+          jq -r '.FunctionCode' function_details.json | base64 --decode > current_code.js
           
           # Make backup before changes
           cp current_code.js current_code.backup.js

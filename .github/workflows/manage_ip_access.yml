@@ -149,7 +149,7 @@ jobs:
           echo "Fetching function $FUNCTION_NAME..."
           
           # Attempt to describe the function
-          if ! aws cloudfront get-function --name "$FUNCTION_NAME" > current.json 2>&1; then
+          if ! aws cloudfront get-function --name "$FUNCTION_NAME" --stage DEVELOPMENT > current.json 2>&1; then
             echo "Error fetching function. Check if it exists and if your credentials have permission."
             exit 1
           fi

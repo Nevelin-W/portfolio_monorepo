@@ -222,24 +222,26 @@ jobs:
           fi
           
           echo "Updated array: $UPDATED_ARRAY"
+          ESCAPED_ARRAY=$(echo "$UPDATED_ARRAY" | jq -c '.')
           
           # Update the function code
           if [[ $(grep -c "var config = {" current_code.js) -gt 0 ]]; then
             # Replace in config object
             if [[ $(echo "$CONFIG_BLOCK" | grep -c "$CONFIG_KEY") -gt 0 ]]; then
               # Update existing key
-              sed -i -E "s/${CONFIG_KEY}: \[[^\]]*\]/${CONFIG_KEY}: ${UPDATED_ARRAY}/g" current_code.js
+              
+              sed -i -E "s/${CONFIG_KEY}: \[[^\]]*\]/${CONFIG_KEY}: ${ESCAPED_ARRAY}/g" current_code.js
             else
               # Add new key to config
-              sed -i -E "s/var config = \{/var config = \{\n        ${CONFIG_KEY}: ${UPDATED_ARRAY},/g" current_code.js
+              sed -i -E "s/var config = \{/var config = \{\n        ${CONFIG_KEY}: ${ESCAPED_ARRAY},/g" current_code.js
             fi
           else
             # Update legacy format
             if [[ $(grep -c "var ${CONFIG_KEY} = " current_code.js) -gt 0 ]]; then
-              sed -i -E "s/var ${CONFIG_KEY} = \[[^\]]*\];/var ${CONFIG_KEY} = ${UPDATED_ARRAY};/g" current_code.js
+              sed -i -E "s/var ${CONFIG_KEY} = \[[^\]]*\];/var ${CONFIG_KEY} = ${ESCAPED_ARRAY};/g" current_code.js
             else
               # Add new variable definition
-              sed -i -E "0,/var /s/var /var ${CONFIG_KEY} = ${UPDATED_ARRAY};\nvar /" current_code.js
+              sed -i -E "0,/var /s/var /var ${CONFIG_KEY} = ${ESCAPED_ARRAY};\nvar /" current_code.js
             fi
           fi
           

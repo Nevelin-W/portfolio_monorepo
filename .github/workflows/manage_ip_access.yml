@@ -143,7 +143,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
         
-- name: Fetch current function
+      - name: Fetch current function
         id: get-function
         run: |
           echo "Fetching function $FUNCTION_NAME..."

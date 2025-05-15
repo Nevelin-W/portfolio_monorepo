@@ -167,7 +167,7 @@ jobs:
           aws cloudfront get-function \
           --name "$FUNCTION_NAME" \
           --stage DEVELOPMENT \
-          function_code.zip
+          function_code
         
           # Unzip the code
           mkdir -p function_code_dir

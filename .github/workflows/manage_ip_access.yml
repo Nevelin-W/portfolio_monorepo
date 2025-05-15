@@ -170,6 +170,7 @@ jobs:
           function_code.zip
         
           # Unzip the code
+          mkdir -p function_code_dir
           unzip -o function_code.zip -d function_code_dir
           
           # Assuming the JS file is named index.js inside

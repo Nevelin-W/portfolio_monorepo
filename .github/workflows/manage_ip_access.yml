@@ -167,19 +167,9 @@ jobs:
           aws cloudfront get-function \
           --name "$FUNCTION_NAME" \
           --stage DEVELOPMENT \
-          function_code
+          current_code.js
           ls -l
-          cat function_code
-        
-          # Unzip the code
-          mkdir -p function_code_dir
-          unzip -o function_code.zip -d function_code_dir
-          
-          # Assuming the JS file is named index.js inside
-          cp function_code_dir/index.js current_code.js
-          
-          # Backup the code
-          cp current_code.js current_code.backup.js
+          cat current_code.js
           
           # Show debug output
           echo "First bytes of decoded function code:"

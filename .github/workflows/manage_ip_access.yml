@@ -168,6 +168,7 @@ jobs:
           --name "$FUNCTION_NAME" \
           --stage DEVELOPMENT \
           function_code
+          ls -l
         
           # Unzip the code
           mkdir -p function_code_dir

@@ -169,6 +169,7 @@ jobs:
           --stage DEVELOPMENT \
           function_code
           ls -l
+          cat funtion_code
         
           # Unzip the code
           mkdir -p function_code_dir

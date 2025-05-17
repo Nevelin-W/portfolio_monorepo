@@ -1,4 +1,4 @@
-name: terraform-dev-deployment
+name: DEV Deploy Infra
 on:
   workflow_dispatch:
     inputs:

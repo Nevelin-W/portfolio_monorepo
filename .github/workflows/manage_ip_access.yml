@@ -252,6 +252,9 @@ jobs:
           # Generate comment for the update
           COMMENT="Updated ${CONFIG_KEY} via GitHub Actions (${ACTION}) on $(date)"
           echo "comment=$COMMENT" >> $GITHUB_OUTPUT
+
+
+          cat current_code.js
           
       - name: Test function code syntax
         run: |

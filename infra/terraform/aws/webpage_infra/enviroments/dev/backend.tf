@@ -1,9 +1,10 @@
 terraform {
-  backend "remote" {
+  cloud {
+
     organization = "PortfolioWebPage"
 
     workspaces {
-      name = "ssl-tls-cerificate"
+      name = "dev_webpage_infra"
     }
   }
 }

@@ -1,9 +1,10 @@
 terraform {
-  backend "remote" {
+  cloud {
+
     organization = "PortfolioWebPage"
 
     workspaces {
-      name = "portfolio_setup"
+      name = "prd_webpage_infra"
     }
   }
 }

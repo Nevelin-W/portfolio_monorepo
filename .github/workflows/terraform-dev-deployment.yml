@@ -53,6 +53,8 @@ jobs:
       - name: Terraform Plan (Save Output)
         run: |
           terraform plan -out=tfout -no-color ${{ github.event.inputs.extra_flags }}
+          pwd
+          ls -l
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
            TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}

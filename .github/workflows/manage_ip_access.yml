@@ -192,7 +192,7 @@ jobs:
             # Replace in config object
             if [[ $(echo "$CONFIG_BLOCK" | grep -c "$CONFIG_KEY") -gt 0 ]]; then
               # Update existing key
-              sed -i -E "s/${CONFIG_KEY}: \[[^\]]*\]/${CONFIG_KEY}: ${ESCAPED_ARRAY}/g" current_code.js
+              sed -i -E "s/(${CONFIG_KEY}:\s*)\[[^]]*\]/\1${ESCAPED_ARRAY}/g" current_code.js
             else
               # Add new key to config
               sed -i -E "s/var config = \{/var config = \{\n        ${CONFIG_KEY}: ${ESCAPED_ARRAY},/g" current_code.js

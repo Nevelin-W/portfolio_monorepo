@@ -223,12 +223,11 @@ jobs:
           # Extract original comment from the function description
           ORIGINAL_COMMENT=$(jq -r '.FunctionSummary.FunctionConfig.Comment' current.json)
           
-          # Keep original comment if possible and append our update info
-          if [[ -n "$ORIGINAL_COMMENT" && "$ORIGINAL_COMMENT" != "null" ]]; then
-            FINAL_COMMENT="$ORIGINAL_COMMENT - $UPDATED_COMMENT"
-          else
-            FINAL_COMMENT="$UPDATED_COMMENT"
-          fi
+          # Define a clean base comment per environment
+          BASE_COMMENT="Function to restrict access based on IP rules in ${FUNCTION_NAME##*-^^}"
+          
+          # Optionally append latest update info
+          FINAL_COMMENT="$BASE_COMMENT - $UPDATED_COMMENT"
           
           # Update the function
           aws cloudfront update-function \

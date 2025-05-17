@@ -20,16 +20,8 @@ on:
           - dev
           # - staging
           # - prod
-      ip_type:
-        description: 'IP address type'
-        required: true
-        default: 'individual'
-        type: choice
-        options:
-          - individual
-          - cidr
       ips:
-        description: 'IP addresses or CIDR blocks (comma-separated)'
+        description: 'IP addresses (comma-separated)'
         required: true
         type: string
 
@@ -44,65 +36,34 @@ jobs:
         id: validate
         run: |
           IPS="${{ github.event.inputs.ips }}"
-          IP_TYPE="${{ github.event.inputs.ip_type }}"
           
           # Split and trim IPs
           IPS_ARRAY=($(echo "$IPS" | tr ',' '\n'))
           
-          # Validate IPs based on type
+          # Validate IPs
           VALID_IPS=()
           for IP in "${IPS_ARRAY[@]}"; do
             IP=$(echo "$IP" | xargs)  # Trim whitespace
             
-            if [[ "$IP_TYPE" == "individual" ]]; then
-              # Simple IPv4 validation regex
-              if [[ $IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-                # Further validate each octet is <= 255
-                VALID=true
-                IFS='.' read -ra OCTETS <<< "$IP"
-                for OCTET in "${OCTETS[@]}"; do
-                  if [[ $OCTET -gt 255 ]]; then
-                    VALID=false
-                    break
-                  fi
-                done
-                
-                if [[ "$VALID" == "true" ]]; then
-                  VALID_IPS+=("$IP")
-                else
-                  echo "Invalid IP address: $IP"
+            # Simple IPv4 validation regex
+            if [[ $IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+              # Further validate each octet is <= 255
+              VALID=true
+              IFS='.' read -ra OCTETS <<< "$IP"
+              for OCTET in "${OCTETS[@]}"; do
+                if [[ $OCTET -gt 255 ]]; then
+                  VALID=false
+                  break
                 fi
+              done
+              
+              if [[ "$VALID" == "true" ]]; then
+                VALID_IPS+=("$IP")
               else
-                echo "Invalid IP format: $IP"
+                echo "Invalid IP address: $IP"
               fi
-            elif [[ "$IP_TYPE" == "cidr" ]]; then
-              # CIDR validation regex
-              if [[ $IP =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$ ]]; then
-                # Validate IP portion
-                PREFIX="${IP#*/}"
-                IP_PART="${IP%/*}"
-                
-                if [[ $PREFIX -le 32 ]]; then
-                  VALID=true
-                  IFS='.' read -ra OCTETS <<< "$IP_PART"
-                  for OCTET in "${OCTETS[@]}"; do
-                    if [[ $OCTET -gt 255 ]]; then
-                      VALID=false
-                      break
-                    fi
-                  done
-                  
-                  if [[ "$VALID" == "true" ]]; then
-                    VALID_IPS+=("$IP")
-                  else
-                    echo "Invalid CIDR IP portion: $IP"
-                  fi
-                else
-                  echo "Invalid CIDR prefix (must be <= 32): $IP"
-                fi
-              else
-                echo "Invalid CIDR format: $IP"
-              fi
+            else
+              echo "Invalid IP format: $IP"
             fi
           done
           
@@ -126,7 +87,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FUNCTION_NAME: "ip-restriction-${{ github.event.inputs.environment }}"
-      IP_TYPE: ${{ github.event.inputs.ip_type }}
       ACTION: ${{ github.event.inputs.action }}
     
     steps:
@@ -181,12 +141,8 @@ jobs:
           NEW_IPS='${{ needs.validate-input.outputs.ips_json }}'
           echo "New IPs to $ACTION: $NEW_IPS"
           
-          # Check which IP list we're modifying based on type
-          if [[ "$IP_TYPE" == "individual" ]]; then
-            CONFIG_KEY="allowedIPs"
-          else
-            CONFIG_KEY="allowedCIDRs"
-          fi
+          # We're only working with allowedIPs
+          CONFIG_KEY="allowedIPs"
           
           # Extract the current configuration
           CONFIG_REGEX="var config = \{([^}]*)\};"

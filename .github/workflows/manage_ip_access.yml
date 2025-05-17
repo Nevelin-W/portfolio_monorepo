@@ -184,6 +184,8 @@ jobs:
           
           echo "Updated array: $UPDATED_ARRAY"
           ESCAPED_ARRAY=$(echo "$UPDATED_ARRAY" | jq -c '.')
+          echo "ESCAPED_ARRAY: $ESCAPED_ARRAY"
+          grep allowedIPs current_code.js
           
           # Update the function code
           if [[ $(grep -c "var config = {" current_code.js) -gt 0 ]]; then

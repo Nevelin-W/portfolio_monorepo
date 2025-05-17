@@ -272,8 +272,10 @@ jobs:
           echo "Updating CloudFront Function..."
           
           # Prepare comment
-          ORIGINAL_COMMENT=$(cat function_comment.txt)
           UPDATED_COMMENT="${{ steps.update-code.outputs.comment }}"
+          
+          # Extract original comment from the function description
+          ORIGINAL_COMMENT=$(jq -r '.FunctionSummary.FunctionConfig.Comment' current.json)
           
           # Keep original comment if possible and append our update info
           if [[ -n "$ORIGINAL_COMMENT" && "$ORIGINAL_COMMENT" != "null" ]]; then

@@ -1,4 +1,4 @@
-name: DEV Deploy Infra
+name: DEV Deploy/Update Infra
 on:
   workflow_dispatch:
     inputs:

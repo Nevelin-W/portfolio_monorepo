@@ -1,0 +1,170 @@
+name: terraform-dev-deployment
+on:
+  workflow_dispatch:
+    inputs:
+      extra_flags:
+        description: 'Additional Terraform flags'
+        required: false
+        default: ''
+        type: string
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  TF_WORKING_DIR: ./infra/terraform/aws/webpage_infra/enviroments/dev
+  TF_VERSION: '1.11.2'
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read 
+      issues: write
+    outputs:
+      ISSUE_NUMBER: ${{ steps.create-approval-issue.outputs.issue_number }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Plan (Save Output)
+        run: |
+          terraform plan -out=tfout -no-color ${{ github.event.inputs.extra_flags }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Upload Terraform Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-dev-plan
+          path: ${{ env.TF_WORKING_DIR }}/tfout
+
+      - name: Create Approval Issue
+        id: create-approval-issue
+        run: |
+          chmod +x ../.github/workflows/terraform/scripts/issue_open.sh
+          ../.github/workflows/terraform/scripts/issue_open.sh \
+            "${{ secrets.GITHUB_TOKEN }}" \
+            "${{ github.server_url }}" \
+            "${{ github.repository }}" \
+            "${{ github.run_id }}" \
+            "${{ github.actor }}" \
+            "[DEV] Manual Approval Required for Terraform" \
+            "tfout"
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+  wait-for-approval:
+    needs: terraform-plan
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    outputs:
+      ISSUE_NUMBER: ${{ steps.check-approval.outputs.ISSUE_NUMBER }}
+      ACTION: ${{ steps.check-approval.outputs.ACTION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Wait for Approval (Polling)
+        id: check-approval
+        run: |
+          chmod +x .github/workflows/terraform/scripts/issue_process_response.sh
+          .github/workflows/terraform/scripts/issue_process_response.sh \
+            "${{ secrets.GITHUB_TOKEN }}" \
+            "${{ needs.terraform-plan.outputs.ISSUE_NUMBER }}" \
+            "dev"
+
+  approve-deployment:
+    needs: wait-for-approval
+    if: needs.wait-for-approval.outputs.ACTION == 'apply'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read 
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Download Terraform Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-dev-plan
+          path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Apply Terraform Plan
+        run: |
+          terraform apply -auto-approve tfout
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Add Comment to Issue
+        run: |
+          chmod +x .github/workflows/terraform/scripts/issue_add_comment.sh
+          .github/workflows/terraform/scripts/issue_add_comment.sh \
+            "${{ secrets.GITHUB_TOKEN }}" \
+            "${{ needs.wait-for-approval.outputs.ISSUE_NUMBER }}" \
+            "apply" \
+            "${{ github.repository }}" \
+            "Terraform plan for DEV environment was applied successfully."
+
+      - name: Close Issue
+        run: |
+          chmod +x .github/workflows/terraform/scripts/issue_close.sh
+          .github/workflows/terraform/scripts/issue_close.sh \
+            "${{ secrets.GITHUB_TOKEN }}" \
+            "${{ needs.wait-for-approval.outputs.ISSUE_NUMBER }}" \
+            "${{ github.repository }}"
+
+  cancel-deployment:
+    needs: wait-for-approval
+    if: needs.wait-for-approval.outputs.ACTION == 'cancel'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read 
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Add Comment to Issue
+        run: |
+          chmod +x .github/workflows/terraform/scripts/issue_add_comment.sh
+          .github/workflows/terraform/scripts/issue_add_comment.sh \
+            "${{ secrets.GITHUB_TOKEN }}" \
+            "${{ needs.wait-for-approval.outputs.ISSUE_NUMBER }}" \
+            "cancel" \
+            "${{ github.repository }}" \
+            "Deployment to DEV environment has been canceled as per the approval request."
+            
+      - name: Close Issue
+        run: |
+          chmod +x .github/workflows/terraform/scripts/issue_close.sh
+          .github/workflows/terraform/scripts/issue_close.sh \
+            "${{ secrets.GITHUB_TOKEN }}" \
+            "${{ needs.wait-for-approval.outputs.ISSUE_NUMBER }}" \
+            "${{ github.repository }}"

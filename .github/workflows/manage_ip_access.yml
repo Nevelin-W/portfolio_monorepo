@@ -10,7 +10,6 @@ on:
         options:
           - add
           - remove
-          - replace
       environment:
         description: 'Target environment'
         required: true
@@ -140,26 +139,20 @@ jobs:
         run: |
           NEW_IPS='${{ needs.validate-input.outputs.ips_json }}'
           echo "New IPs to $ACTION: $NEW_IPS"
-          
-          # We're only working with allowedIPs
+
           CONFIG_KEY="allowedIPs"
-          
+
           # Extract the current configuration
           CONFIG_REGEX="var config = \{([^}]*)\};"
           if [[ $(grep -c "var config = {" current_code.js) -gt 0 ]]; then
-            # Modern format with config object
             CONFIG_BLOCK=$(grep -zoP "var config = \{[^}]*\};" current_code.js | tr '\0' '\n')
-            
-            # Extract the specific array we need to modify
             CURRENT_ARRAY_REGEX="${CONFIG_KEY}: (\[[^\]]*\])"
             if [[ $(echo "$CONFIG_BLOCK" | grep -c "$CONFIG_KEY") -gt 0 ]]; then
               CURRENT_ARRAY=$(echo "$CONFIG_BLOCK" | grep -oP "${CONFIG_KEY}: \K(\[[^\]]*\])")
             else
-              # Key doesn't exist yet, add it
               CURRENT_ARRAY="[]"
             fi
           else
-            # Legacy format - look for standalone arrays
             LEGACY_REGEX="var ${CONFIG_KEY} = (\[[^\]]*\]);"
             if [[ $(grep -c "var ${CONFIG_KEY} = " current_code.js) -gt 0 ]]; then
               CURRENT_ARRAY=$(grep -oP "var ${CONFIG_KEY} = \K(\[[^\]]*\]);" current_code.js)
@@ -167,25 +160,21 @@ jobs:
               CURRENT_ARRAY="[]"
             fi
           fi
-          
+
           echo "Current array: $CURRENT_ARRAY"
-          
-          # Process the action
+
           if [[ "$ACTION" == "add" ]]; then
-            # Merge and deduplicate
             UPDATED_ARRAY=$(echo "$CURRENT_ARRAY" "$NEW_IPS" | jq -s 'add | unique')
           elif [[ "$ACTION" == "remove" ]]; then
-            # Remove the specified IPs
             UPDATED_ARRAY=$(echo "$CURRENT_ARRAY" "$NEW_IPS" | jq -s '.[0] - .[1]')
-          elif [[ "$ACTION" == "replace" ]]; then
-            # Replace with new IPs
-            UPDATED_ARRAY="$NEW_IPS"
+          else
+            echo "Unsupported action: $ACTION"
+            exit 1
           fi
-          
+
           echo "Updated array: $UPDATED_ARRAY"
           ESCAPED_ARRAY=$(echo "$UPDATED_ARRAY" | jq -c '.')
           echo "ESCAPED_ARRAY: $ESCAPED_ARRAY"
-          grep allowedIPs current_code.js
           
           # Update the function code
           if [[ $(grep -c "var config = {" current_code.js) -gt 0 ]]; then
@@ -207,12 +196,8 @@ jobs:
             fi
           fi
           
-          # Generate comment for the update
           COMMENT="Updated ${CONFIG_KEY} via GitHub Actions (${ACTION}) on $(date)"
           echo "comment=$COMMENT" >> $GITHUB_OUTPUT
-
-
-          cat current_code.js
           
       - name: Test function code syntax
         run: |

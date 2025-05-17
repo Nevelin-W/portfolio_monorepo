@@ -75,7 +75,7 @@ jobs:
             "${{ github.run_id }}" \
             "${{ github.actor }}" \
             "[DEV] Manual Approval Required for Terraform" \
-            "tfout"
+            "${{ env.TF_WORKING_DIR }}/tfout"
             
   wait-for-approval:
     needs: terraform-plan

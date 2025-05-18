@@ -5,7 +5,6 @@ resource "aws_s3_bucket" "s3_bucket_01" {
   tags = {
     ManagedByTf = "Yes"
     Environment = upper(var.environment)
-    test = "yes"
   }
 }
 

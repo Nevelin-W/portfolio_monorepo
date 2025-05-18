@@ -1,4 +1,4 @@
-name: terraform-dev-deployment
+name: DEV Deploy/Update Infra
 on:
   workflow_dispatch:
     inputs:
@@ -7,14 +7,12 @@ on:
         required: false
         default: ''
         type: string
-
 env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: ${{ secrets.AWS_REGION }}
   TF_WORKING_DIR: ./infra/terraform/aws/webpage_infra/enviroments/dev
   TF_VERSION: '1.11.2'
-
 jobs:
   terraform-plan:
     runs-on: ubuntu-latest
@@ -26,49 +24,57 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
       - name: Terraform Init
         run: terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
-
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
       - name: Terraform Format Check
         run: terraform fmt -check
         working-directory: ${{ env.TF_WORKING_DIR }}
-
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
       - name: Terraform Validate
         run: terraform validate
         working-directory: ${{ env.TF_WORKING_DIR }}
-
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
       - name: Terraform Plan (Save Output)
         run: |
-          terraform plan -out=tfout -no-color ${{ github.event.inputs.extra_flags }}
+          terraform plan -out=tfout -no-color ${{ github.event.inputs.extra_flags }} | tee ${{ github.workspace }}/terraform-plan-output.log
         working-directory: ${{ env.TF_WORKING_DIR }}
-
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
       - name: Upload Terraform Plan Artifact
         uses: actions/upload-artifact@v4
         with:
           name: terraform-dev-plan
           path: ${{ env.TF_WORKING_DIR }}/tfout
-
+      - name: Upload Plan Output Logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-output
+          path: ${{ github.workspace }}/terraform-plan-output.log
       - name: Create Approval Issue
         id: create-approval-issue
+        working-directory: .github/workflows/terraform/scripts
         run: |
-          chmod +x ../.github/workflows/terraform/scripts/issue_open.sh
-          ../.github/workflows/terraform/scripts/issue_open.sh \
+          chmod +x ./issue_open.sh
+          ./issue_open.sh \
             "${{ secrets.GITHUB_TOKEN }}" \
             "${{ github.server_url }}" \
             "${{ github.repository }}" \
             "${{ github.run_id }}" \
             "${{ github.actor }}" \
             "[DEV] Manual Approval Required for Terraform" \
-            "tfout"
-        working-directory: ${{ env.TF_WORKING_DIR }}
-
+            "${{ github.workspace }}/infra/terraform/aws/webpage_infra/enviroments/dev/tfout"
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+            
   wait-for-approval:
     needs: terraform-plan
     runs-on: ubuntu-latest
@@ -90,6 +96,8 @@ jobs:
             "${{ secrets.GITHUB_TOKEN }}" \
             "${{ needs.terraform-plan.outputs.ISSUE_NUMBER }}" \
             "dev"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   approve-deployment:
     needs: wait-for-approval
@@ -110,6 +118,8 @@ jobs:
       - name: Terraform Init
         run: terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
       - name: Download Terraform Plan Artifact
         uses: actions/download-artifact@v4
@@ -121,6 +131,8 @@ jobs:
         run: |
           terraform apply -auto-approve tfout
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
 
       - name: Add Comment to Issue
         run: |

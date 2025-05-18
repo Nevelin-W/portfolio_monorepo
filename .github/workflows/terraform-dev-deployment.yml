@@ -99,6 +99,8 @@ jobs:
             "${{ secrets.GITHUB_TOKEN }}" \
             "${{ needs.terraform-plan.outputs.ISSUE_NUMBER }}" \
             "dev"
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
   approve-deployment:
     needs: wait-for-approval

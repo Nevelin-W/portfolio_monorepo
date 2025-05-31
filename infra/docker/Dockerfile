@@ -1,5 +1,5 @@
 # Base image
-FROM ubuntu:22.04
+FROM ubuntu:25.10
 
 # Build arguments
 ARG FLUTTER_VERSION=stable
@@ -50,16 +50,24 @@ RUN git clone -b ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /flut
 # Create app directory
 WORKDIR /app
 
+# # Copy the build script into the container
+# COPY infra/docker/build.sh /usr/local/bin/build.sh
+# RUN chmod +x /usr/local/bin/build.sh
+
 # Copy the build script into the container
-COPY infra/docker/build.sh /usr/local/bin/build.sh
-RUN chmod +x /usr/local/bin/build.sh
+COPY infra/docker/scripts/build_artifact.sh /usr/local/bin/build_artifact.sh
+RUN chmod +x /usr/local/bin/build_artifact.sh
 
-# # Expose port for testing (optional)
-# EXPOSE 8080
+# Copy the deploy script into the container
+COPY infra/docker/scripts/deploy_artifact.sh /usr/local/bin/deploy_artifact.sh
+RUN chmod +x /usr/local/bin/deploy_artifact.sh
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD flutter doctor || exit 1
+# # # Expose port for testing (optional)
+# # EXPOSE 8080
+
+# # Health check
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+#   CMD flutter doctor || exit 1
 
 # Set entrypoint
 ENTRYPOINT ["/bin/bash"]

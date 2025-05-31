@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:myportfolio/main_page/scroll_column/section_wrapper.dart';
 
 class AboutSection extends StatefulWidget {
   const AboutSection({super.key});
@@ -8,32 +9,12 @@ class AboutSection extends StatefulWidget {
 }
 
 class AboutSectionState extends State<AboutSection> {
-  bool _isHovered = false; // Tracks hover status
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    return MouseRegion(
-      onEnter: (_) {
-        setState(() {
-          _isHovered = true; // Hovered state set to true
-        });
-      },
-      onExit: (_) {
-        setState(() {
-          _isHovered = false; // Hovered state set to false
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.all(16.0),
-        decoration: BoxDecoration(
-          color: _isHovered ? Colors.black.withOpacity(0.7) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6), // Rounded corners
-        ),
-        child: buildRichText(theme),
-      ),
+
+    return SectionWrapper(
+      child: buildRichText(theme),
     );
   }
 
@@ -42,29 +23,25 @@ class AboutSectionState extends State<AboutSection> {
     return Text.rich(
       TextSpan(
         children: [
-          buildText(theme, "A little about myself\n\n", FontWeight.bold),
+          buildText(theme, "Professional Summary\n\n", FontWeight.bold),
           buildText(
             theme,
-            "In 2021, I began studying Information Technologies at RTU, but after just one semester, I realized that academia wasn’t for me at that time, "
-            "and I quickly transitioned into the tech industry, starting as a Cloud Integrations Intern specializing in MuleSoft. "
-            "I advanced from intern to developer in a relatively small amount of time. "
-            "While I found the experience I gained to be valuable, I was concerned about the limitations of MuleSoft's low-code environment and the long-term prospects for my career, "
-            "which prompted my shift in specialization/technologies.\n\n",
+            "Results-driven DevOps Engineer with hands-on experience in cloud infrastructure automation and integration development. "
+            "Specialized in designing, implementing, and maintaining scalable systems across Oracle Cloud Infrastructure (OCI) and Microsoft Azure environments. "
+            "Proven track record of optimizing deployment pipelines, reducing manual intervention, and implementing robust automation frameworks. "
+            "Driven by solving complex infrastructure challenges and accelerating delivery cycles while maintaining system reliability and security.\n\n",
             FontWeight.w400,
           ),
-          buildText(theme, "Enter DevOps\n\n", FontWeight.bold),
+          buildText(theme, "Core Expertise\n\n", FontWeight.bold),
           buildText(
             theme,
-            "As a Junior DevOps Engineer, I lead infrastructure automation with Ansible, Terraform, Linux scripting, and Python keeping everything from deployments to debugging in check. "
-            "I thrive on problem-solving, whether it’s tackling complex challenges or those ‘easy-yet-elusive’ issues that keep me on my toes. "
-            "Always expanding my skills, I’m here to make sure things run smoothly (and preferably, without any 3 a.m. surprises).\n\n",
+            "Infrastructure as Code, CI/CD Automation, Cloud Architecture, Configuration Management\n\n",
             FontWeight.w400,
           ),
-          buildText(theme, "Outside of work\n\n", FontWeight.bold),
+          buildText(theme, "Passion\n\n", FontWeight.bold),
           buildText(
             theme,
-            "Recently, I re-enrolled in Information Technologies to deepen my knowledge, fueled by a newfound passion for learning. "
-            "When I’m not at work or hitting the books, you can find me kitesurfing, playing squash, or diving into Flutter and Dart development for native mobile apps and webpages—like the one you’re browsing right now!",
+            "Refactoring and improving code/infrastructure",
             FontWeight.w400,
           ),
         ],

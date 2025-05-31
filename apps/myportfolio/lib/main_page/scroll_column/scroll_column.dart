@@ -3,7 +3,6 @@ import 'package:myportfolio/main_page/scroll_column/experience_section/experienc
 import 'package:myportfolio/main_page/scroll_column/experience_section/buttons/resume_button.dart';
 import 'package:myportfolio/main_page/scroll_column/project_section/project_section.dart';
 import 'package:myportfolio/main_page/scroll_column/about_section/about_section.dart';
-import 'package:myportfolio/main_page/scroll_column/footer_section/footer_section.dart';
 
 class ScrollColumn extends StatelessWidget {
   final GlobalKey experienceKey;
@@ -19,7 +18,7 @@ class ScrollColumn extends StatelessWidget {
   Widget build(BuildContext context) {
    
     final List<Widget> columnChildren = [
-      const SizedBox(height: 145),
+      const SizedBox(height: 160),
       const AboutSection(),
       const SizedBox(height: 100),
       // Experience Section with key
@@ -28,8 +27,6 @@ class ScrollColumn extends StatelessWidget {
       const SizedBox(height: 100),
       // Projects Section with key
       Container(key: projectsKey, child: const ProjectSection()),
-      const SizedBox(height: 100),
-      const FooterSection(),
     ];
 
     return Column(

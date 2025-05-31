@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:myportfolio/main_page/scroll_column/section_wrapper.dart';
 
-class ExperienceItem extends StatefulWidget {
+class ExperienceItem extends StatelessWidget {
   final String startDate;
   final String endDate;
   final String title;
@@ -17,86 +18,69 @@ class ExperienceItem extends StatefulWidget {
   });
 
   @override
-  _ExperienceItemState createState() => _ExperienceItemState();
-}
-
-class _ExperienceItemState extends State<ExperienceItem> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16.0),
-        decoration: BoxDecoration(
-          color: _isHovered ? Colors.black.withOpacity(0.7) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 1,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: widget.startDate,
-                          style: theme.textTheme.bodyMedium!.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+
+    return SectionWrapper(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: startDate,
+                        style: theme.textTheme.bodyMedium!.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
-                        TextSpan(
-                          text: ' — ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
-                            fontSize: theme.textTheme.bodyMedium!.fontSize,
-                          ),
+                      ),
+                      TextSpan(
+                        text: ' — ',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                          fontSize: theme.textTheme.bodyMedium!.fontSize,
                         ),
-                        TextSpan(
-                          text: widget.endDate,
-                          style: theme.textTheme.bodyMedium!.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      ),
+                      TextSpan(
+                        text: endDate,
+                        style: theme.textTheme.bodyMedium!.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.title,
-                    style: theme.textTheme.bodyMedium!.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    widget.description,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  TechStackChips(techList: widget.techList),
-                ],
-              ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  description,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 10),
+                TechStackChips(techList: techList),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

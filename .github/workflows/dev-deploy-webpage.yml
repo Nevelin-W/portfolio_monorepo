@@ -5,26 +5,22 @@ on:
     inputs:
       repository:
         description: 'Repository URL to clone'
-        required: false
+        required: true
         default: 'https://github.com/Nevelin-W/portfolio_monorepo.git'
         type: string
       branch:
         description: 'Branch to clone'
-        required: false
+        required: true
         default: 'dev'
-        type: choice
-        options:
-          - main
-          - dev
-          - prd
+        type: string
       project_path:
         description: 'Path to Flutter project within repository'
-        required: false
+        required: true
         default: 'apps/myportfolio'
         type: string
       image_version:
         description: 'Version of docker image to use'
-        required: false
+        required: true
         default: 'latest'
         type: choice
         options:

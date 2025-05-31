@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:myportfolio/main_page/scroll_column/section_wrapper.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class ProjectItem extends StatefulWidget {
+class ProjectItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
@@ -17,91 +18,49 @@ class ProjectItem extends StatefulWidget {
     super.key,
   });
 
-  @override
-  ProjectItemState createState() => ProjectItemState();
-}
-
-class ProjectItemState extends State<ProjectItem> {
-  bool _isHovered = false;
-  Offset _mousePosition = Offset.zero;
-
-  // Function to open the URL with error handling
   Future<void> _launchURL() async {
-    final Uri uri = Uri.parse(widget.url);
+    final Uri uri = Uri.parse(url);
     try {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, webOnlyWindowName: '_blank');
       }
     } catch (e) {
-      debugPrint('Could not launch ${widget.url}: $e');
+      debugPrint('Could not launch $url: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return GestureDetector(
       onTap: _launchURL,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        onHover: (details) =>
-            setState(() => _mousePosition = details.localPosition),
-        child: Stack(
+      child: SectionWrapper(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Background container with hover effect
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                color: _isHovered
-                    ? Colors.black.withOpacity(0.7)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
+            Icon(icon, size: 25, color: theme.colorScheme.primary),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(widget.icon, size: 25, color: theme.colorScheme.primary),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.title,
-                          style: theme.textTheme.bodyMedium!
-                              .copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(widget.description,
-                            style: theme.textTheme.bodyMedium),
-                        const SizedBox(height: 10),
-                        TechStackChips(
-                            techList: widget.techList), // Keep tech stack as is
-                      ],
+                  Text(
+                    title,
+                    style: theme.textTheme.bodyMedium!.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Text(
+                    description,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  TechStackChips(techList: techList),
                 ],
               ),
             ),
-            // Tooltip when hovered
-            if (_isHovered)
-              Positioned(
-                left: _mousePosition.dx + 10,
-                top: _mousePosition.dy - 10,
-                child: Material(
-                  color: Colors.transparent,
-                  child: Text(
-                    'Try Clicking!',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -109,7 +68,6 @@ class ProjectItemState extends State<ProjectItem> {
   }
 }
 
-// Separate widget for the tech stack chips
 class TechStackChips extends StatelessWidget {
   final List<String> techList;
 
@@ -147,9 +105,7 @@ class TechStackChips extends StatelessWidget {
                   width: 0,
                 ),
               ),
-
-              materialTapTargetSize: MaterialTapTargetSize
-                  .shrinkWrap, // Ensure the tap target size is appropriate
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           )
           .toList(),

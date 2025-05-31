@@ -33,10 +33,10 @@ class HeaderSection extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         // Short bio text
-        Text(
-          "I streamline and automate infrastructure, ensuring reliable, scalable, and efficient delivery of software.",
-          style: theme.textTheme.bodyMedium!.copyWith(color: theme.colorScheme.inverseSurface, fontWeight: FontWeight.w500),
-        ),
+        // Text(
+        //   "I streamline and automate infrastructure, ensuring reliable, scalable, and efficient delivery of software.",
+        //   style: theme.textTheme.bodyMedium!.copyWith(color: theme.colorScheme.inverseSurface, fontWeight: FontWeight.w500),
+        // ),
       ],
     );
   }

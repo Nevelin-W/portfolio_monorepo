@@ -10,11 +10,11 @@ class ExperienceSection extends StatelessWidget {
       const ExperienceItem(
         startDate: '04/2024',
         endDate: 'Present',
-        title: 'Junior DevOps Engineer',
+        title: 'DevOps Engineer',
         description: '''
 • Leading DevOps efforts for a government project, focusing on infrastructure automation and orchestration.
 • Using Ansible and Terraform to streamline provisioning and configuration across various environments.
-• Automating tasks with Linux scripting and Python, enhancing operational efficiency.
+• Automating tasks with shell scripting and Python, enhancing operational efficiency.
 ''',
         techList: [
           'Ansible', 'Terraform', 'Linux', 'Python', 'Git', 'Docker', 'Pipelines'

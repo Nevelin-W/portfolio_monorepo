@@ -50,13 +50,17 @@ RUN git clone -b ${FLUTTER_VERSION} https://github.com/flutter/flutter.git /flut
 # Create app directory
 WORKDIR /app
 
-# Copy the build script into the container
-COPY infra/docker/build.sh /usr/local/bin/build.sh
-RUN chmod +x /usr/local/bin/build.sh
+# # Copy the build script into the container
+# COPY infra/docker/build.sh /usr/local/bin/build.sh
+# RUN chmod +x /usr/local/bin/build.sh
 
 # Copy the build script into the container
 COPY infra/docker/scripts/build_artifact.sh /usr/local/bin/build_artifact.sh
 RUN chmod +x /usr/local/bin/build_artifact.sh
+
+# Copy the deploy script into the container
+COPY infra/docker/scripts/deploy_artifact.sh /usr/local/bin/deploy_artifact.sh
+RUN chmod +x /usr/local/bin/deploy_artifact.sh
 
 # # # Expose port for testing (optional)
 # # EXPOSE 8080

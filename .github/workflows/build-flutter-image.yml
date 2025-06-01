@@ -178,34 +178,34 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
 
-      - name: Generate SBOM
-        if: steps.build.outputs.digest != ''
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
-          format: spdx-json
-          output-file: sbom.spdx.json
+      # - name: Generate SBOM
+      #   if: steps.build.outputs.digest != ''
+      #   uses: anchore/sbom-action@v0
+      #   with:
+      #     image: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+      #     format: spdx-json
+      #     output-file: sbom.spdx.json
 
-      - name: Upload SBOM as artifact
-        if: steps.build.outputs.digest != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ steps.version_tag.outputs.tag }}
-          path: sbom.spdx.json
+      # - name: Upload SBOM as artifact
+      #   if: steps.build.outputs.digest != ''
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: sbom-${{ steps.version_tag.outputs.tag }}
+      #     path: sbom.spdx.json
 
-      - name: Run Trivy vulnerability scanner
-        if: steps.build.outputs.digest != ''
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+      # - name: Run Trivy vulnerability scanner
+      #   if: steps.build.outputs.digest != ''
+      #   uses: aquasecurity/trivy-action@master
+      #   with:
+      #     image-ref: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+      #     format: 'sarif'
+      #     output: 'trivy-results.sarif'
 
-      - name: Upload Trivy scan results
-        if: steps.build.outputs.digest != ''
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
+      # - name: Upload Trivy scan results
+      #   if: steps.build.outputs.digest != ''
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
 
       - name: Output build results
         run: |

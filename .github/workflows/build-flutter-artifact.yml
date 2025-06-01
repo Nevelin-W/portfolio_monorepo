@@ -1,5 +1,4 @@
-# .github/workflows/build-artifact.yml
-name: Build Flutter Artifact
+name: Build and Create Artifact
 
 on:
   workflow_dispatch:
@@ -28,8 +27,8 @@ on:
           - latest
           - v0.0.1-12-05-2025-02-14
           - v0.0.1-12-05-2025-01-45
-      custom_version:
-        description: 'Custom artifact version (optional)'
+      version:
+        description: 'Custom version (optional - auto-generated if empty)'
         required: false
         type: string
       verbose:
@@ -37,6 +36,10 @@ on:
         required: false
         type: boolean
         default: true
+  push:
+    branches: [ main, dev, develop ]
+  pull_request:
+    branches: [ main ]
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || 'latest' }}
@@ -52,66 +55,85 @@ jobs:
       artifact-s3-key: ${{ steps.build.outputs.ARTIFACT_S3_KEY }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Pull Flutter Docker image
         run: docker pull ${{ env.DOCKER_IMAGE }}
 
-      - name: Generate version
-        id: version
-        run: |
-          if [ -n "${{ github.event.inputs.custom_version }}" ]; then
-            VERSION="${{ github.event.inputs.custom_version }}"
-          else
-            VERSION="$(date +%Y%m%d-%H%M%S)-${{ github.run_number }}"
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Generated version: $VERSION"
-
-      - name: Build artifact in Docker container
-        id: build
-        run: |
-          # Create output file for capturing container outputs
-          OUTPUT_FILE=$(mktemp)
+      # - name: Build artifact in Docker container
+      #   id: build
+      #   run: |
+      #     # Set version
+      #     if [ -n "${{ github.event.inputs.version }}" ]; then
+      #       export VERSION="${{ github.event.inputs.version }}"
+      #     else
+      #       export VERSION="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+      #     fi
           
-          docker run --rm \
-            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
-            -e AWS_REGION=${{ env.AWS_REGION }} \
-            -e ARTIFACT_BUCKET=${{ secrets.ARTIFACT_BUCKET }} \
-            -e REPO_URL=${{ github.event.inputs.repository }} \
-            -e REPO_BRANCH=${{ github.event.inputs.branch }} \
-            -e PROJECT_PATH=${{ github.event.inputs.project_path }} \
-            -e VERSION=${{ steps.version.outputs.VERSION }} \
-            -e VERBOSE=${{ github.event.inputs.verbose }} \
-            -e GITHUB_OUTPUT=/tmp/github_output \
-            -v $OUTPUT_FILE:/tmp/github_output \
-            ${{ env.DOCKER_IMAGE }} /usr/local/bin/build.sh
+      #     echo "Building with version: $VERSION"
           
-          # Read outputs from container
-          if [ -f "$OUTPUT_FILE" ]; then
-            cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
-          fi
+      #     # Create output file for container
+      #     OUTPUT_FILE=$(mktemp)
+          
+      #     docker run --rm \
+      #       -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+      #       -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+      #       -e AWS_REGION=${{ env.AWS_REGION }} \
+      #       -e ARTIFACT_BUCKET=${{ secrets.ARTIFACT_BUCKET }} \
+      #       -e REPO_URL=${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }} \
+      #       -e REPO_BRANCH=${{ github.event.inputs.branch || github.ref_name }} \
+      #       -e PROJECT_PATH=${{ github.event.inputs.project_path || 'apps/myportfolio' }} \
+      #       -e VERSION="$VERSION" \
+      #       -e VERBOSE=${{ github.event.inputs.verbose || 'true' }} \
+      #       -e GITHUB_OUTPUT="/tmp/github_output" \
+      #       -v "$OUTPUT_FILE:/tmp/github_output" \
+      #       ${{ env.DOCKER_IMAGE }} /usr/local/bin/build.sh
+          
+      #     # Read outputs from container
+      #     if [ -f "$OUTPUT_FILE" ]; then
+      #       cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
+      #     fi
+          
+      #     rm -f "$OUTPUT_FILE"
 
-      - name: Create build summary
-        run: |
-          echo "## Build Completed Successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Details:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Repository: ${{ github.event.inputs.repository }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Project Path: ${{ github.event.inputs.project_path }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker Image: ${{ env.DOCKER_IMAGE }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifact Details:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: \`${{ steps.version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Artifact: \`${{ steps.build.outputs.ARTIFACT_NAME }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- S3 Key: \`${{ steps.build.outputs.ARTIFACT_S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
-          echo "Use the Deploy workflows to deploy this artifact to DEV, STAGING, or PRODUCTION environments." >> $GITHUB_STEP_SUMMARY
+      # - name: Generate build summary
+      #   run: |
+      #     echo "## 🚀 Build Completed Successfully" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Version:** ${{ steps.build.outputs.ARTIFACT_VERSION }}" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Artifact:** ${{ steps.build.outputs.ARTIFACT_NAME }}" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Repository:** ${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Branch:** ${{ github.event.inputs.branch || github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Project Path:** ${{ github.event.inputs.project_path || 'apps/myportfolio' }}" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Docker Image:** ${{ env.DOCKER_IMAGE }}" >> $GITHUB_STEP_SUMMARY
+      #     echo "- **Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+
+      # - name: Comment on PR
+      #   if: github.event_name == 'pull_request'
+      #   uses: actions/github-script@v7
+      #   with:
+      #     script: |
+      #       const version = '${{ steps.build.outputs.ARTIFACT_VERSION }}';
+      #       const artifactName = '${{ steps.build.outputs.ARTIFACT_NAME }}';
+            
+      #       github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         body: `🚀 **Build Completed Successfully**
+              
+      #         **Artifact Created:**
+      #         - Version: \`${version}\`
+      #         - Artifact: \`${artifactName}\`
+      #         - Ready for deployment to dev/staging/production
+              
+      #         Use the Deploy workflows to deploy this build.`
+      #       });

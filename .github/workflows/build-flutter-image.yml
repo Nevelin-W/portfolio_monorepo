@@ -26,7 +26,6 @@ on:
         options:
           - docker.io
           - ghcr.io
-          - quay.io
       push_to_registry:
         description: 'Push to registry (uncheck for build-only)'
         default: true
@@ -126,10 +125,6 @@ jobs:
               echo "image_name=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "username=${{ secrets.DOCKER_USERNAME }}" >> $GITHUB_OUTPUT
-              echo "password=${{ secrets.DOCKER_PASSWORD }}" >> $GITHUB_OUTPUT
-              echo "image_name=$REGISTRY/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
-              ;;
           esac
 
       - name: Log in to Docker Registry

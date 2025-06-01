@@ -23,6 +23,7 @@ on:
         required: true
         type: choice
         options:
+          - v0.0.1-20250601-175743
           - v0.0.3-20250601-115608
       version:
         description: 'Custom version (optional - auto-generated if empty)'

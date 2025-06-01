@@ -32,22 +32,22 @@ on:
         default: true
         required: false
         type: boolean
-  push:
-    branches: [ main, master ]
-    paths:
-      - 'infra/docker/**'
-      - 'docker/**'
-      - 'lib/**'
-      - 'pubspec.yaml'
-      - '.github/workflows/docker-build.yml'
-  pull_request:
-    branches: [ main, master ]
-    paths:
-      - 'infra/docker/**'
-      - 'docker/**'
-      - 'lib/**'
-      - 'pubspec.yaml'
-      - '.github/workflows/docker-build.yml'
+  # push:
+  #   branches: [ main, master ]
+  #   paths:
+  #     - 'infra/docker/**'
+  #     - 'docker/**'
+  #     - 'lib/**'
+  #     - 'pubspec.yaml'
+  #     - '.github/workflows/docker-build.yml'
+  # pull_request:
+  #   branches: [ main, master ]
+  #   paths:
+  #     - 'infra/docker/**'
+  #     - 'docker/**'
+  #     - 'lib/**'
+  #     - 'pubspec.yaml'
+  #     - '.github/workflows/docker-build.yml'
 
 env:
   REGISTRY: ${{ github.event.inputs.registry || secrets.DOCKER_REGISTRY || 'docker.io' }}

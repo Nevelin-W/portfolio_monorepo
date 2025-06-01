@@ -21,12 +21,9 @@ on:
       image_version:
         description: 'Version of docker image to use'
         required: true
-        default: 'latest'
         type: choice
         options:
-          - latest
-          - v0.0.1-12-05-2025-02-14
-          - v0.0.1-12-05-2025-01-45
+          - v0.0.3-20250601-115608
       version:
         description: 'Custom version (optional - auto-generated if empty)'
         required: false

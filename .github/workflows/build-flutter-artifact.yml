@@ -36,10 +36,6 @@ on:
         required: false
         type: boolean
         default: true
-  # push:
-  #   branches: [ main, dev, develop ]
-  # pull_request:
-  #   branches: [ main ]
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || 'latest' }}

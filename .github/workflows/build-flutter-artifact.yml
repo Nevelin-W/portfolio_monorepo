@@ -67,40 +67,44 @@ jobs:
       - name: Pull Flutter Docker image
         run: docker pull ${{ env.DOCKER_IMAGE }}
 
-      # - name: Build artifact in Docker container
-      #   id: build
-      #   run: |
-      #     # Set version
-      #     if [ -n "${{ github.event.inputs.version }}" ]; then
-      #       export VERSION="${{ github.event.inputs.version }}"
-      #     else
-      #       export VERSION="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
-      #     fi
+      - name: Build artifact in Docker container
+        id: build
+        run: |
+          # Set version
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            export VERSION="${{ github.event.inputs.version }}"
+          else
+            export VERSION="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+          fi
           
-      #     echo "Building with version: $VERSION"
+          echo "Building with version: $VERSION"
           
-      #     # Create output file for container
-      #     OUTPUT_FILE=$(mktemp)
+          # Create output file for container
+          OUTPUT_FILE=$(mktemp)
           
-      #     # Get AWS credentials from the environment (set by configure-aws-credentials action)
-      #     docker run --rm \
-      #       -e AWS_ACCESS_KEY_ID \
-      #       -e AWS_SECRET_ACCESS_KEY \
-      #       -e AWS_SESSION_TOKEN \
-      #       -e AWS_REGION=${{ env.AWS_REGION }} \
-      #       -e ARTIFACT_BUCKET=${{ secrets.ARTIFACT_BUCKET }} \
-      #       -e REPO_URL=${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }} \
-      #       -e REPO_BRANCH=${{ github.event.inputs.branch || github.ref_name }} \
-      #       -e PROJECT_PATH=${{ github.event.inputs.project_path || 'apps/myportfolio' }} \
-      #       -e VERSION="$VERSION" \
-      #       -e VERBOSE=${{ github.event.inputs.verbose || 'true' }} \
-      #       -e GITHUB_OUTPUT="/tmp/github_output" \
-      #       -v "$OUTPUT_FILE:/tmp/github_output" \
-      #       ${{ env.DOCKER_IMAGE }} /usr/local/bin/build.sh
+          # Extract repository name from URL
+          REPO_NAME=$(basename "${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" .git)
           
-      #     # Read outputs from container
-      #     if [ -f "$OUTPUT_FILE" ]; then
-      #       cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
-      #     fi
+          # Get AWS credentials from the environment (set by configure-aws-credentials action)
+          docker run --rm \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_SESSION_TOKEN \
+            -e AWS_REGION=${{ env.AWS_REGION }} \
+            -e ARTIFACT_BUCKET=${{ secrets.ARTIFACT_BUCKET }} \
+            -e REPO_URL="${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" \
+            -e REPO_BRANCH="${{ github.event.inputs.branch || 'dev' }}" \
+            -e REPO_NAME="$REPO_NAME" \
+            -e PROJECT_PATH="${{ github.event.inputs.project_path || 'apps/myportfolio' }}" \
+            -e VERSION="$VERSION" \
+            -e VERBOSE="${{ github.event.inputs.verbose || 'true' }}" \
+            -e GITHUB_OUTPUT="/tmp/github_output" \
+            -v "$OUTPUT_FILE:/tmp/github_output" \
+            ${{ env.DOCKER_IMAGE }} /usr/local/bin/build_artifact.sh
           
-      #     rm -f "$OUTPUT_FILE"
+          # Read outputs from container
+          if [ -f "$OUTPUT_FILE" ]; then
+            cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+          rm -f "$OUTPUT_FILE"

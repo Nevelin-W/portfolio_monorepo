@@ -21,10 +21,6 @@ on:
       #   description: 'S3 bucket for deployment'
       #   required: true
       #   type: string
-      cloudfront_distribution_id:
-        description: 'CloudFront distribution ID (optional)'
-        required: false
-        type: string
       dry_run:
         description: 'Perform dry run (preview changes without deploying)'
         required: false
@@ -87,7 +83,7 @@ jobs:
           S3_BUCKET="${{ secrets.DEV_S3_BUCKET }}"
           
           # Determine CloudFront distribution ID
-          CLOUDFRONT_ID="${{ github.event.inputs.cloudfront_distribution_id || inputs.cloudfront_distribution_id || '' }}"
+          CLOUDFRONT_ID="${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }}"
           
           # Determine artifact version/name
           ARTIFACT_VERSION="${{ github.event.inputs.artifact_version || inputs.artifact_version || 'latest' }}"

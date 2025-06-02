@@ -94,6 +94,7 @@ jobs:
             -e AWS_SESSION_TOKEN \
             -e AWS_REGION=${{ env.AWS_REGION }} \
             -e ARTIFACT_BUCKET=${{ secrets.ARTIFACT_BUCKET }} \
+            -e ARTIFACT_PREFIX="artifacts" \
             -e REPO_URL="${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" \
             -e REPO_BRANCH="${{ github.event.inputs.branch || 'dev' }}" \
             -e REPO_NAME="$REPO_NAME" \

@@ -51,7 +51,7 @@ check_aws_credentials() {
 # Clone repo
 clone_repo() {
   info "Cloning repository: $REPO_URL branch: $REPO_BRANCH"
-  local clone_dir="/app/$REPO_NAME"
+  local clone_dir="/workspace/$REPO_NAME"
   
   # Clean up any existing directory
   if [ -d "$clone_dir" ]; then
@@ -71,7 +71,7 @@ clone_repo() {
 
 # Build project
 build_project() {
-  local project_dir="/app/$REPO_NAME/$PROJECT_PATH"
+  local project_dir="/workspace/$REPO_NAME/$PROJECT_PATH"
   info "Building Flutter project at $project_dir"
   
   # Verify project directory exists
@@ -113,13 +113,13 @@ build_project() {
 
 # Create build metadata
 create_build_metadata() {
-  local build_dir="/app/$REPO_NAME/$PROJECT_PATH/$OUTPUT_DIR"
+  local build_dir="/workspace/$REPO_NAME/$PROJECT_PATH/$OUTPUT_DIR"
   local metadata_file="$build_dir/build-metadata.json"
   
   info "Creating build metadata..."
   
   # Get git information
-  cd "/app/$REPO_NAME"
+  cd "/workspace/$REPO_NAME"
   local git_commit=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
   local git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
   local git_tag=$(git describe --tags --exact-match 2>/dev/null || echo "")
@@ -152,7 +152,7 @@ EOF
 
 # Create and upload artifact
 create_artifact() {
-  local build_dir="/app/$REPO_NAME/$PROJECT_PATH/$OUTPUT_DIR"
+  local build_dir="/workspace/$REPO_NAME/$PROJECT_PATH/$OUTPUT_DIR"
   local artifact_name="portfolio-$VERSION.tar.gz"
   local artifact_path="/tmp/$artifact_name"
   

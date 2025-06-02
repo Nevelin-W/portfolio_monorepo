@@ -17,10 +17,10 @@ on:
         description: 'Specific artifact name (optional - overrides version)'
         required: false
         type: string
-      s3_bucket:
-        description: 'S3 bucket for deployment'
-        required: true
-        type: string
+      # s3_bucket:
+      #   description: 'S3 bucket for deployment'
+      #   required: true
+      #   type: string
       cloudfront_distribution_id:
         description: 'CloudFront distribution ID (optional)'
         required: false
@@ -84,7 +84,7 @@ jobs:
           chmod 777 "$WORKSPACE_DIR"
           
           # Determine S3 bucket
-          S3_BUCKET="${{ github.event.inputs.s3_bucket || inputs.s3_bucket }}"
+          S3_BUCKET="${{ secrets.DEV_S3_BUCKET }}"
           
           # Determine CloudFront distribution ID
           CLOUDFRONT_ID="${{ github.event.inputs.cloudfront_distribution_id || inputs.cloudfront_distribution_id || '' }}"
@@ -111,7 +111,7 @@ jobs:
             -e AWS_SECRET_ACCESS_KEY \
             -e AWS_SESSION_TOKEN \
             -e AWS_REGION=${{ env.AWS_REGION }} \
-            -e S3_BUCKET="${{ secrets.DEV_S3_BUCKET }}" \
+            -e S3_BUCKET="$S3_BUCKET" \
             -e CLOUDFRONT_DISTRIBUTION_ID="$CLOUDFRONT_ID" \
             -e ARTIFACT_BUCKET="${{ secrets.ARTIFACT_BUCKET }}" \
             -e ARTIFACT_PREFIX="artifacts" \

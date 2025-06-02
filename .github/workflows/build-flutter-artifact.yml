@@ -70,23 +70,24 @@ jobs:
           else
             export VERSION="$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
           fi
-          
+      
           echo "Building with version: $VERSION"
-          
-          # Create output directory with proper permissions
+      
+          # Create output directory and give full permissions
           OUTPUT_DIR=$(mktemp -d)
+          chmod 777 "$OUTPUT_DIR"
+      
+          # Create the output file path
           OUTPUT_FILE="$OUTPUT_DIR/github_output"
-          touch "$OUTPUT_FILE"
-          chmod 666 "$OUTPUT_FILE"
-          
-          # Extract repository name from URL
-          REPO_NAME=$(basename "${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" .git)
-          
-          # Create workspace directory with proper permissions
+      
+          # Create workspace directory
           WORKSPACE_DIR=$(mktemp -d)
           chmod 777 "$WORKSPACE_DIR"
-          
-          # Get AWS credentials from the environment (set by configure-aws-credentials action)
+      
+          # Extract repository name
+          REPO_NAME=$(basename "${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" .git)
+      
+          # Run Docker container
           docker run --rm \
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
@@ -99,16 +100,18 @@ jobs:
             -e PROJECT_PATH="${{ github.event.inputs.project_path || 'apps/myportfolio' }}" \
             -e VERSION="$VERSION" \
             -e VERBOSE="${{ github.event.inputs.verbose || 'true' }}" \
-            -e GITHUB_OUTPUT="/tmp/github_output" \
-            -v "$OUTPUT_FILE:/tmp/github_output:rw" \
+            -e GITHUB_OUTPUT="/tmp/output/github_output" \
+            -v "$OUTPUT_DIR:/tmp/output:rw" \
             -v "$WORKSPACE_DIR:/workspace:rw" \
             --workdir /workspace \
             ${{ env.DOCKER_IMAGE }} /usr/local/bin/build_artifact.sh
-          
+      
           # Read outputs from container
           if [ -f "$OUTPUT_FILE" ]; then
             cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
           fi
-          
+      
+          # Clean up
+          rm -rf "$OUTPUT_DIR" "$WORKSPACE_DIR"
           # Clean up
           rm -rf "$OUTPUT_DIR" "$WORKSPACE_DIR"

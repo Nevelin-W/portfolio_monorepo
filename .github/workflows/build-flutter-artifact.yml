@@ -82,6 +82,10 @@ jobs:
           # Extract repository name from URL
           REPO_NAME=$(basename "${{ github.event.inputs.repository || 'https://github.com/Nevelin-W/portfolio_monorepo.git' }}" .git)
           
+          # Create workspace directory with proper permissions
+          WORKSPACE_DIR=$(mktemp -d)
+          chmod 777 "$WORKSPACE_DIR"
+          
           # Get AWS credentials from the environment (set by configure-aws-credentials action)
           docker run --rm \
             -e AWS_ACCESS_KEY_ID \
@@ -97,7 +101,8 @@ jobs:
             -e VERBOSE="${{ github.event.inputs.verbose || 'true' }}" \
             -e GITHUB_OUTPUT="/tmp/github_output" \
             -v "$OUTPUT_FILE:/tmp/github_output:rw" \
-            --user $(id -u):$(id -g) \
+            -v "$WORKSPACE_DIR:/workspace:rw" \
+            --workdir /workspace \
             ${{ env.DOCKER_IMAGE }} /usr/local/bin/build_artifact.sh
           
           # Read outputs from container
@@ -106,4 +111,4 @@ jobs:
           fi
           
           # Clean up
-          rm -rf "$OUTPUT_DIR"
+          rm -rf "$OUTPUT_DIR" "$WORKSPACE_DIR"

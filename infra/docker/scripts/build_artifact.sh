@@ -12,7 +12,7 @@ VERBOSE=${VERBOSE:-"false"}
 
 # Artifact configuration
 ARTIFACT_BUCKET=${ARTIFACT_BUCKET:-""}  # S3 bucket for storing build artifacts
-ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-"artifacts/portfolio"}
+ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-"artifacts"}
 VERSION=${VERSION:-$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}
 
 # Validate required parameters
@@ -195,11 +195,20 @@ create_artifact() {
   
   success "Artifact uploaded successfully"
   
-  # Output artifact information for GitHub Actions
+  # Output artifact information for GitHub Actions with error handling
   if [ -n "$GITHUB_OUTPUT" ]; then
-    echo "ARTIFACT_VERSION=$VERSION" >> $GITHUB_OUTPUT
-    echo "ARTIFACT_NAME=$artifact_name" >> $GITHUB_OUTPUT
-    echo "ARTIFACT_S3_KEY=$ARTIFACT_PREFIX/$artifact_name" >> $GITHUB_OUTPUT
+    # Try to write outputs, handle permission errors gracefully
+    {
+      echo "ARTIFACT_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+      echo "ARTIFACT_NAME=$artifact_name" >> "$GITHUB_OUTPUT"
+      echo "ARTIFACT_S3_KEY=$ARTIFACT_PREFIX/$artifact_name" >> "$GITHUB_OUTPUT"
+    } 2>/dev/null || {
+      error "Failed to write to GITHUB_OUTPUT file (permission issue)"
+      info "Artifact details:"
+      info "  Version: $VERSION"
+      info "  Name: $artifact_name"
+      info "  S3 Key: $ARTIFACT_PREFIX/$artifact_name"
+    }
   fi
   
   # Clean up local artifact

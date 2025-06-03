@@ -210,7 +210,7 @@ download_artifact() {
 
 # Deploy to S3
 deploy_to_s3() {
-  local build_dir="$1"
+  local extract_dir="$1"
   
   info "Starting deployment to S3 bucket: $S3_BUCKET"
   
@@ -222,12 +222,67 @@ deploy_to_s3() {
     exit 1
   fi
 
-  # Verify build directory
-  [ ! -d "$build_dir" ] && { error "Build directory not found: $build_dir"; exit 1; }
+  # Verify extract directory exists
+  if [ ! -d "$extract_dir" ]; then
+    error "Extract directory not found: $extract_dir"
+    exit 1
+  fi
+  
+  # Since the artifact contains build files directly in root, use extract_dir as build_dir
+  local build_dir="$extract_dir"
+  
+  # Debug: Show what's in the extracted directory
+  debug "Contents of extracted directory ($extract_dir):"
+  if [ "$VERBOSE" == "true" ]; then
+    ls -la "$extract_dir" || true
+  fi
+  
+  # Look for common web build files to verify it's a valid build
+  local has_index_html=false
+  local has_web_files=false
+  
+  if [ -f "$build_dir/index.html" ]; then
+    has_index_html=true
+    debug "Found index.html in root"
+  fi
+  
+  # Check for common web build files/directories
+  if [ -d "$build_dir/assets" ] || [ -d "$build_dir/static" ] || [ -d "$build_dir/js" ] || [ -d "$build_dir/css" ] || [ -f "$build_dir/manifest.json" ]; then
+    has_web_files=true
+    debug "Found web build files/directories"
+  fi
+  
+  # If no index.html in root, check common build output directories
+  if [ "$has_index_html" = false ]; then
+    for possible_build_dir in "build" "dist" "public" "web" "_site" "out"; do
+      if [ -f "$extract_dir/$possible_build_dir/index.html" ]; then
+        build_dir="$extract_dir/$possible_build_dir"
+        has_index_html=true
+        info "Found build files in subdirectory: $possible_build_dir"
+        break
+      fi
+    done
+  fi
+  
+  # Verify we have a valid build directory
+  if [ "$has_index_html" = false ] && [ "$has_web_files" = false ]; then
+    error "No valid web build files found in extracted artifact"
+    error "Expected to find index.html or common web build directories (assets, static, js, css)"
+    info "Contents of extract directory:"
+    find "$extract_dir" -type f -name "*.html" -o -name "*.js" -o -name "*.css" | head -20
+    exit 1
+  fi
+  
+  info "Using build directory: $build_dir"
   
   # Count files to be uploaded
   local file_count=$(find "$build_dir" -type f | wc -l)
   info "Found $file_count files to deploy"
+  
+  if [ "$file_count" -eq 0 ]; then
+    error "No files found in build directory: $build_dir"
+    exit 1
+  fi
 
   # Backup current deployment (optional)
   backup_current_deployment
@@ -240,12 +295,37 @@ deploy_to_s3() {
       aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --dryrun --delete --region "$AWS_REGION"
     fi
   else
-    local sync_cmd="aws s3 sync \"$build_dir\" \"s3://$S3_BUCKET/\" --delete --region \"$AWS_REGION\""
+    # Add appropriate cache control headers for web assets
+    local sync_args=(
+      "$build_dir"
+      "s3://$S3_BUCKET/"
+      "--delete"
+      "--region" "$AWS_REGION"
+      "--exclude" "*"
+      "--include" "*.html"
+      "--cache-control" "no-cache, no-store, must-revalidate"
+    )
+    
+    # Upload HTML files first with no-cache headers
+    if [ "$VERBOSE" == "true" ]; then
+      aws s3 sync "${sync_args[@]}"
+    else
+      aws s3 sync "${sync_args[@]}" > /dev/null 2>&1
+    fi
+    
+    # Upload other assets with longer cache times
+    local asset_sync_args=(
+      "$build_dir"
+      "s3://$S3_BUCKET/"
+      "--region" "$AWS_REGION"
+      "--exclude" "*.html"
+      "--cache-control" "public, max-age=31536000"
+    )
     
     if [ "$VERBOSE" == "true" ]; then
-      aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION"
+      aws s3 sync "${asset_sync_args[@]}"
     else
-      aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION" > /dev/null 2>&1
+      aws s3 sync "${asset_sync_args[@]}" > /dev/null 2>&1
     fi
     
     success "Files synchronized successfully to S3"

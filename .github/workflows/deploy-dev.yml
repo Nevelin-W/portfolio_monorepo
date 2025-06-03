@@ -114,7 +114,6 @@ jobs:
             -e ARTIFACT_BUCKET="${{ secrets.ARTIFACT_BUCKET }}" \
             -e ARTIFACT_PREFIX="artifacts" \
             -e ARTIFACT_VERSION="$ARTIFACT_VERSION" \
-            -e ARTIFACT_NAME="$ARTIFACT_NAME" \
             -e DRY_RUN="$DRY_RUN" \
             -e VERBOSE="$VERBOSE" \
             -e GITHUB_OUTPUT="/tmp/output/github_output" \

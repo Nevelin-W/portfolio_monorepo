@@ -12,7 +12,6 @@ VERBOSE=${VERBOSE:-false}
 ARTIFACT_BUCKET=${ARTIFACT_BUCKET}
 ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-"artifacts"}
 ARTIFACT_VERSION=${ARTIFACT_VERSION}  # Can be specific version or "latest"
-ARTIFACT_NAME=${ARTIFACT_NAME}        # Optional: specific artifact name
 
 # GitHub Actions output support
 GITHUB_OUTPUT=${GITHUB_OUTPUT}
@@ -67,7 +66,7 @@ validate_parameters() {
   
   [ -z "$S3_BUCKET" ] && errors+=("S3_BUCKET")
   [ -z "$ARTIFACT_BUCKET" ] && errors+=("ARTIFACT_BUCKET")
-  [ -z "$ARTIFACT_VERSION" ] && [ -z "$ARTIFACT_NAME" ] && errors+=("ARTIFACT_VERSION or ARTIFACT_NAME")
+  [ -z "$ARTIFACT_VERSION" ] && errors+=("ARTIFACT_VERSION")
   [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ] && errors+=("CLOUDFRONT_DISTRIBUTION_ID")
   
   if [ ${#errors[@]} -gt 0 ]; then
@@ -85,15 +84,35 @@ validate_parameters() {
   fi
 }
 
-# Get artifact name from version
-get_artifact_name() {
-  if [ -n "$ARTIFACT_NAME" ]; then
-    info "Using specified artifact name: $ARTIFACT_NAME"
-    echo "$ARTIFACT_NAME"
+# Find latest artifact or use specified version
+find_latest_artifact() {
+  if [ "$ARTIFACT_VERSION" == "latest" ]; then
+    info "Finding latest artifact..."
+    local latest_artifact=$(aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" --recursive | \
+      grep "portfolio-.*\.tar\.gz" | \
+      sort -k1,2 | \
+      tail -1 | \
+      awk '{print $4}' | \
+      sed "s|^$ARTIFACT_PREFIX/||")
+    
+    if [ -z "$latest_artifact" ]; then
+      error "No portfolio artifacts found in s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/"
+      exit 1
+    fi
+    
+    info "Latest artifact found: $latest_artifact"
+    echo "$latest_artifact"
   else
-    local versioned_artifact="portfolio-$ARTIFACT_VERSION.tar.gz"
-    info "Using versioned artifact: $versioned_artifact"
-    echo "$versioned_artifact"
+    # ARTIFACT_VERSION is already the full filename
+    if [[ "$ARTIFACT_VERSION" == *.tar.gz ]]; then
+      info "Using provided artifact filename: $ARTIFACT_VERSION"
+      echo "$ARTIFACT_VERSION"
+    else
+      # Legacy support: construct filename from version
+      local versioned_artifact="portfolio-$ARTIFACT_VERSION.tar.gz"
+      info "Using versioned artifact: $versioned_artifact"
+      echo "$versioned_artifact"
+    fi
   fi
 }
 
@@ -378,7 +397,6 @@ main() {
   info "  CloudFront Distribution: ${CLOUDFRONT_DISTRIBUTION_ID:-"None"}"
   info "  Artifact Bucket: $ARTIFACT_BUCKET"
   info "  Artifact Version: ${ARTIFACT_VERSION:-"latest"}"
-  info "  Artifact Name: ${ARTIFACT_NAME:-"Auto-detect"}"
   info "  AWS Region: $AWS_REGION"
   info "  Dry Run: $DRY_RUN"
   info "  Verbose: $VERBOSE"

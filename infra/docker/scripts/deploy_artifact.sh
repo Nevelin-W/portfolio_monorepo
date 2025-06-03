@@ -22,7 +22,7 @@ log() {
   local level=$1
   shift
   if [[ $VERBOSE == "true" ]] || [[ $level != "DEBUG" ]]; then
-    echo "[$level] $(date '+%Y-%m-%d %H:%M:%S') - $@"
+    echo "[$level] $(date '+%Y-%m-%d %H:%M:%S') - $@" >&2
   fi
 }
 
@@ -93,7 +93,7 @@ find_latest_artifact() {
   
   if [ "$ARTIFACT_VERSION" == "latest" ] || [ -z "$ARTIFACT_VERSION" ]; then
     info "Finding latest artifact..."
-    local latest_artifact=$(aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" | \
+    local latest_artifact=$(aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" 2>/dev/null | \
       grep "portfolio-.*\.tar\.gz" | \
       sort -k1,2 | \
       tail -n1 | \
@@ -102,7 +102,7 @@ find_latest_artifact() {
     if [ -z "$latest_artifact" ]; then
       error "No artifacts found in s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/"
       info "Available objects:"
-      aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" || info "Unable to list objects"
+      aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" 2>/dev/null || info "Unable to list objects"
       exit 1
     fi
     
@@ -125,7 +125,7 @@ verify_artifact_exists() {
   if ! aws s3api head-object --bucket "$ARTIFACT_BUCKET" --key "$artifact_key" &>/dev/null; then
     error "Artifact not found: s3://$ARTIFACT_BUCKET/$artifact_key"
     info "Available artifacts:"
-    aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" | grep "portfolio-.*\.tar\.gz" || info "No portfolio artifacts found"
+    aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" 2>/dev/null | grep "portfolio-.*\.tar\.gz" || info "No portfolio artifacts found"
     exit 1
   fi
   

@@ -67,6 +67,8 @@ validate_parameters() {
   
   [ -z "$S3_BUCKET" ] && errors+=("S3_BUCKET")
   [ -z "$ARTIFACT_BUCKET" ] && errors+=("ARTIFACT_BUCKET")
+  [ -z "$ARTIFACT_VERSION" ] && [ -z "$ARTIFACT_NAME" ] && errors+=("ARTIFACT_VERSION or ARTIFACT_NAME")
+  [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ] && errors+=("CLOUDFRONT_DISTRIBUTION_ID")
   
   if [ ${#errors[@]} -gt 0 ]; then
     error "Required environment variables are missing:"
@@ -83,31 +85,11 @@ validate_parameters() {
   fi
 }
 
-# Find latest artifact if version not specified
-find_latest_artifact() {
+# Get artifact name from version
+get_artifact_name() {
   if [ -n "$ARTIFACT_NAME" ]; then
     info "Using specified artifact name: $ARTIFACT_NAME"
     echo "$ARTIFACT_NAME"
-    return
-  fi
-  
-  if [ "$ARTIFACT_VERSION" == "latest" ] || [ -z "$ARTIFACT_VERSION" ]; then
-    info "Finding latest artifact..."
-    local latest_artifact=$(aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" 2>/dev/null | \
-      grep "portfolio-.*\.tar\.gz" | \
-      sort -k1,2 | \
-      tail -n1 | \
-      awk '{print $4}')
-    
-    if [ -z "$latest_artifact" ]; then
-      error "No artifacts found in s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/"
-      info "Available objects:"
-      aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" 2>/dev/null || info "Unable to list objects"
-      exit 1
-    fi
-    
-    info "Latest artifact: $latest_artifact"
-    echo "$latest_artifact"
   else
     local versioned_artifact="portfolio-$ARTIFACT_VERSION.tar.gz"
     info "Using versioned artifact: $versioned_artifact"
@@ -297,11 +279,6 @@ backup_current_deployment() {
 
 # CloudFront invalidation
 invalidate_cloudfront() {
-  [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ] && { 
-    info "No CloudFront distribution ID provided, skipping cache invalidation"
-    return
-  }
-
   info "Invalidating CloudFront cache for distribution: $CLOUDFRONT_DISTRIBUTION_ID"
   
   if [ "$DRY_RUN" == "true" ]; then
@@ -331,8 +308,6 @@ invalidate_cloudfront() {
 
 # Get CloudFront domain name
 get_cloudfront_domain() {
-  [ -z "$CLOUDFRONT_DISTRIBUTION_ID" ] && return
-  
   local domain_name=$(aws cloudfront get-distribution \
     --id "$CLOUDFRONT_DISTRIBUTION_ID" \
     --query 'Distribution.DomainName' \

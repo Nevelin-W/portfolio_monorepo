@@ -69,7 +69,7 @@ jobs:
         run: docker pull ${{ env.DOCKER_IMAGE }}
 
       - name: Make deployment script executable
-        run: chmod +x portfolio_monorepo/infra/docker/script/deploy_artifact.sh
+        run: chmod +x ./infra/docker/scripts/deploy_artifact.sh
 
       - name: Deploy artifact in Docker container
         id: deploy
@@ -123,7 +123,7 @@ jobs:
             -e GITHUB_OUTPUT="/tmp/output/github_output" \
             -v "$OUTPUT_DIR:/tmp/output:rw" \
             -v "$WORKSPACE_DIR:/workspace:rw" \
-            -v "$PWD/portfolio_monorepo/infra/docker/script/deploy_artifact.sh:/usr/local/bin/deploy_artifact.sh:ro" \
+            -v "$PWD/infra/docker/scripts/deploy_artifact.sh:/usr/local/bin/deploy_artifact.sh:ro" \
             --workdir /workspace \
             ${{ env.DOCKER_IMAGE }} /usr/local/bin/deploy_artifact.sh deploy
           

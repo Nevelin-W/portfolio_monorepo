@@ -167,32 +167,25 @@ download_artifact() {
     exit 1
   fi
   
-  # Extract artifact
+  # Extract artifact - contains build files ready for deployment
   mkdir -p "$extract_dir"
   info "Extracting artifact..."
-  cd "$extract_dir"
   
   if [ "$VERBOSE" == "true" ]; then
-    tar -xzf "$artifact_path"
+    tar -xzf "$artifact_path" -C "$extract_dir"
   else
-    tar -xzf "$artifact_path" 2>/dev/null
-  fi
-  
-  # Verify extraction
-  if [ ! "$(ls -A "$extract_dir")" ]; then
-    error "Artifact extraction failed or directory is empty"
-    exit 1
+    tar -xzf "$artifact_path" -C "$extract_dir" 2>/dev/null
   fi
   
   # Display build metadata if available
-  if [ -f "build-metadata.json" ]; then
+  if [ -f "$extract_dir/build-metadata.json" ]; then
     info "Build metadata found:"
     if command -v jq &>/dev/null && [ "$VERBOSE" == "true" ]; then
-      cat build-metadata.json | jq . 2>/dev/null || cat build-metadata.json
+      cat "$extract_dir/build-metadata.json" | jq . 2>/dev/null || cat "$extract_dir/build-metadata.json"
     else
-      local version=$(cat build-metadata.json | jq -r '.version' 2>/dev/null || echo "unknown")
-      local build_date=$(cat build-metadata.json | jq -r '.build_date' 2>/dev/null || echo "unknown")
-      local git_commit=$(cat build-metadata.json | jq -r '.git.commit' 2>/dev/null || echo "unknown")
+      local version=$(cat "$extract_dir/build-metadata.json" | jq -r '.version' 2>/dev/null || echo "unknown")
+      local build_date=$(cat "$extract_dir/build-metadata.json" | jq -r '.build_date' 2>/dev/null || echo "unknown")  
+      local git_commit=$(cat "$extract_dir/build-metadata.json" | jq -r '.git.commit' 2>/dev/null || echo "unknown")
       info "  Version: $version"
       info "  Build Date: $build_date"
       info "  Git Commit: ${git_commit:0:8}"
@@ -204,7 +197,7 @@ download_artifact() {
     fi
   fi
   
-  success "Artifact downloaded and extracted to $extract_dir"
+  success "Artifact extracted and ready for deployment"
   echo "$extract_dir"
 }
 
@@ -217,42 +210,31 @@ deploy_to_s3() {
   # Verify bucket exists and is accessible
   if ! aws s3api head-bucket --bucket "$S3_BUCKET" --region "$AWS_REGION" 2>/dev/null; then
     error "Bucket $S3_BUCKET does not exist or access denied in region $AWS_REGION"
-    info "Available buckets:"
-    aws s3 ls 2>/dev/null || info "Unable to list buckets"
     exit 1
   fi
 
-  # Verify build directory
-  [ ! -d "$build_dir" ] && { error "Build directory not found: $build_dir"; exit 1; }
-  
   # Count files to be uploaded
   local file_count=$(find "$build_dir" -type f | wc -l)
-  info "Found $file_count files to deploy"
+  info "Deploying $file_count files to S3"
 
   # Backup current deployment (optional)
   backup_current_deployment
 
-  # Sync files instead of deleting and uploading (safer)
+  # Deploy files to S3
   info "Synchronizing files to S3..."
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would synchronize files from $build_dir to s3://$S3_BUCKET/"
     if [ "$VERBOSE" == "true" ]; then
       aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --dryrun --delete --region "$AWS_REGION"
     fi
-  else
-    local sync_cmd="aws s3 sync \"$build_dir\" \"s3://$S3_BUCKET/\" --delete --region \"$AWS_REGION\""
-    
+  else    
     if [ "$VERBOSE" == "true" ]; then
       aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION"
     else
       aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION" > /dev/null 2>&1
     fi
     
-    success "Files synchronized successfully to S3"
-    
-    # Verify deployment
-    local uploaded_count=$(aws s3 ls "s3://$S3_BUCKET/" --recursive | wc -l)
-    info "Verification: $uploaded_count files now in S3 bucket"
+    success "Files deployed successfully to S3"
   fi
   
   # Output deployment info

@@ -68,6 +68,9 @@ jobs:
       - name: Pull Flutter Docker image
         run: docker pull ${{ env.DOCKER_IMAGE }}
 
+      - name: Make deployment script executable
+        run: chmod +x ./infra/docker/script/deploy_artifact.sh
+
       - name: Deploy artifact in Docker container
         id: deploy
         run: |
@@ -75,19 +78,27 @@ jobs:
           OUTPUT_DIR=$(mktemp -d)
           chmod 777 "$OUTPUT_DIR"
           
+          # Create the output file path
+          OUTPUT_FILE="$OUTPUT_DIR/github_output"
+          
           # Create workspace directory
           WORKSPACE_DIR=$(mktemp -d)
           chmod 777 "$WORKSPACE_DIR"
           
-          # Determine paths and env
+          # Determine S3 bucket
           S3_BUCKET="${{ secrets.DEV_S3_BUCKET }}"
+          
+          # Determine CloudFront distribution ID
           CLOUDFRONT_ID="${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }}"
+          
+          # Determine artifact version/name
           ARTIFACT_VERSION="${{ github.event.inputs.artifact_version || inputs.artifact_version || 'latest' }}"
           ARTIFACT_NAME="${{ github.event.inputs.artifact_name || inputs.artifact_name || '' }}"
+          
+          # Determine flags
           DRY_RUN="${{ github.event.inputs.dry_run || inputs.dry_run || 'false' }}"
           VERBOSE="${{ github.event.inputs.verbose || inputs.verbose || 'true' }}"
-          OUTPUT_FILE="$OUTPUT_DIR/github_output"
-      
+          
           echo "Deploying with configuration:"
           echo "  S3 Bucket: $S3_BUCKET"
           echo "  CloudFront ID: $CLOUDFRONT_ID"
@@ -95,8 +106,8 @@ jobs:
           echo "  Artifact Name: $ARTIFACT_NAME"
           echo "  Dry Run: $DRY_RUN"
           echo "  Verbose: $VERBOSE"
-      
-          # Run Docker container using local script
+          
+          # Run Docker container with mounted deployment script
           docker run --rm \
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
@@ -112,16 +123,16 @@ jobs:
             -e GITHUB_OUTPUT="/tmp/output/github_output" \
             -v "$OUTPUT_DIR:/tmp/output:rw" \
             -v "$WORKSPACE_DIR:/workspace:rw" \
-            -v "${{ github.workspace }}/infra/docker/script/deploy_artifact.sh:/usr/local/bin/deploy_artifact.sh:ro" \
+            -v "$PWD/infra/docker/script/deploy_artifact.sh:/usr/local/bin/deploy_artifact.sh:ro" \
             --workdir /workspace \
             ${{ env.DOCKER_IMAGE }} /usr/local/bin/deploy_artifact.sh deploy
-      
+          
           # Read outputs from container
           if [ -f "$OUTPUT_FILE" ]; then
             cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
           fi
-      
-          # Fallbacks if output not set
+          
+          # Set default outputs if not provided by script
           if ! grep -q "DEPLOYED_ARTIFACT=" "$OUTPUT_FILE" 2>/dev/null; then
             if [ -n "$ARTIFACT_NAME" ]; then
               echo "DEPLOYED_ARTIFACT=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
@@ -129,15 +140,15 @@ jobs:
               echo "DEPLOYED_ARTIFACT=portfolio-$ARTIFACT_VERSION.tar.gz" >> $GITHUB_OUTPUT
             fi
           fi
-      
+          
           if ! grep -q "DEPLOYMENT_STATUS=" "$OUTPUT_FILE" 2>/dev/null; then
             echo "DEPLOYMENT_STATUS=success" >> $GITHUB_OUTPUT
           fi
-      
+          
           if ! grep -q "DEPLOYMENT_URL=" "$OUTPUT_FILE" 2>/dev/null; then
             echo "DEPLOYMENT_URL=https://$S3_BUCKET.s3-website-${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_OUTPUT
           fi
-      
+          
           # Clean up
           rm -rf "$OUTPUT_DIR" "$WORKSPACE_DIR"
 

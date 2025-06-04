@@ -69,7 +69,7 @@ jobs:
         run: docker pull ${{ env.DOCKER_IMAGE }}
 
       - name: Make deployment script executable
-        run: chmod +x ./infra/docker/script/deploy_artifact.sh
+        run: chmod +x portfolio_monorepo/infra/docker/script/deploy_artifact.sh
 
       - name: Deploy artifact in Docker container
         id: deploy

@@ -307,6 +307,11 @@ deploy_to_s3() {
 
   # Deploy files to S3
   info "Synchronizing files to S3..."
+  ls -l
+  pwd
+  echo $build_dir
+  cd /tmp
+  ls -l pwd
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would synchronize files from $build_dir to s3://$S3_BUCKET/"
     if [ "$VERBOSE" == "true" ]; then

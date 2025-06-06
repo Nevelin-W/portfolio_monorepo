@@ -167,30 +167,51 @@ download_artifact() {
     exit 1
   fi
   
-  # Create extract directory and verify it exists
+  # Create extract directory with explicit path resolution
+  info "Creating extraction directory: $extract_dir"
   mkdir -p "$extract_dir"
-  pwd
-  ls -l
-  cd /tmp
-  pwd
-  ls -l
+  
+  # Give it a moment and verify with absolute path
+  sleep 0.1
   if [ ! -d "$extract_dir" ]; then
     error "Failed to create extract directory: $extract_dir"
+    debug "Current directory: $(pwd)"
+    debug "Directory listing of /tmp:"
+    ls -la /tmp/ || true
     exit 1
   fi
   
-  # Extract artifact - contains build files ready for deployment
-  info "Extracting artifact..."
+  debug "Extract directory created successfully: $extract_dir"
   
+  # Extract artifact - contains build files ready for deployment
+  info "Extracting artifact to: $extract_dir"
+  
+  # Test tar file first
+  if ! tar -tzf "$artifact_path" >/dev/null 2>&1; then
+    error "Invalid or corrupted tar file: $artifact_path"
+    exit 1
+  fi
+  
+  # Extract with explicit error handling
   if [ "$VERBOSE" == "true" ]; then
-    tar -xzf "$artifact_path" -C "$extract_dir"
+    if ! tar -xzf "$artifact_path" -C "$extract_dir"; then
+      error "Extraction failed with verbose output"
+      exit 1
+    fi
   else
-    tar -xzf "$artifact_path" -C "$extract_dir" 2>/dev/null
+    if ! tar -xzf "$artifact_path" -C "$extract_dir" 2>/dev/null; then
+      error "Extraction failed"
+      debug "Retrying with verbose output:"
+      tar -xzf "$artifact_path" -C "$extract_dir" || exit 1
+    fi
   fi
   
   # Verify extraction worked
+  debug "Checking extraction results..."
   if [ ! "$(ls -A "$extract_dir" 2>/dev/null)" ]; then
     error "Extraction failed or directory is empty: $extract_dir"
+    debug "Directory contents:"
+    ls -la "$extract_dir" || true
     exit 1
   fi
   

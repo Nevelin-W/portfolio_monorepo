@@ -154,11 +154,12 @@ download_artifact() {
   # Clean up any existing files
   rm -rf "$artifact_path" "$extract_dir"
   
-  # Download from S3 with progress if verbose
+  # Download from S3 with better output handling
   if [ "$VERBOSE" == "true" ]; then
     aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/$artifact_name" "$artifact_path"
   else
-    aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/$artifact_name" "$artifact_path" > /dev/null 2>&1
+    # Suppress AWS CLI progress output that was causing issues
+    aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/$artifact_name" "$artifact_path" --no-progress >/dev/null 2>&1
   fi
   
   # Verify download
@@ -167,56 +168,28 @@ download_artifact() {
     exit 1
   fi
   
-  # Debug current environment
-  info "Current user: $(whoami)"
-  info "Current directory: $(pwd)"
-  info "/tmp permissions: $(ls -ld /tmp)"
-  
-  # Create extract directory with explicit debugging
+  # Create extract directory
   info "Creating extraction directory: $extract_dir"
-  
-  # Try to create directory and capture any errors
-  mkdir_output=$(mkdir -p "$extract_dir" 2>&1)
-  mkdir_exit_code=$?
-  
-  info "mkdir exit code: $mkdir_exit_code"
-  if [ -n "$mkdir_output" ]; then
-    info "mkdir output: $mkdir_output"
+  if ! mkdir -p "$extract_dir"; then
+    error "Failed to create extraction directory: $extract_dir"
+    exit 1
   fi
   
-  # Check if directory exists immediately after mkdir
-  if [ -d "$extract_dir" ]; then
-    info "Directory exists after mkdir: YES"
-    info "Directory permissions: $(ls -ld "$extract_dir")"
-  else
-    error "Directory does not exist after mkdir: $extract_dir"
-    info "Contents of /tmp:"
-    ls -la /tmp/ || true
-    
-    # Try alternative approach - create with different path
-    local alt_extract_dir="/tmp/portfolio_extract_$$"
-    info "Trying alternative directory: $alt_extract_dir"
-    
-    if mkdir -p "$alt_extract_dir" 2>/dev/null && [ -d "$alt_extract_dir" ]; then
-      info "Alternative directory created successfully"
-      extract_dir="$alt_extract_dir"
-    else
-      error "Failed to create any extraction directory"
-      exit 1
-    fi
+  # Verify directory was created
+  if [ ! -d "$extract_dir" ]; then
+    error "Extraction directory was not created: $extract_dir"
+    exit 1
   fi
   
   # Test write permissions
   local test_file="$extract_dir/test_write"
-  if touch "$test_file" 2>/dev/null && [ -f "$test_file" ]; then
-    info "Write permissions confirmed"
-    rm -f "$test_file"
-  else
-    error "No write permissions in extraction directory"
+  if ! touch "$test_file" 2>/dev/null || [ ! -f "$test_file" ]; then
+    error "No write permissions in extraction directory: $extract_dir"
     exit 1
   fi
+  rm -f "$test_file"
   
-  # Extract artifact - contains build files ready for deployment
+  # Extract artifact
   info "Extracting artifact to: $extract_dir"
   
   # Test tar file first
@@ -225,33 +198,26 @@ download_artifact() {
     exit 1
   fi
   
-  # Extract with explicit error handling
-  if [ "$VERBOSE" == "true" ]; then
-    if ! tar -xzf "$artifact_path" -C "$extract_dir"; then
-      error "Extraction failed with verbose output"
-      exit 1
+  # Extract with proper error handling
+  if ! tar -xzf "$artifact_path" -C "$extract_dir" 2>/dev/null; then
+    error "Failed to extract artifact"
+    # Try with verbose output for debugging
+    if [ "$VERBOSE" == "true" ]; then
+      tar -xzf "$artifact_path" -C "$extract_dir"
     fi
-  else
-    if ! tar -xzf "$artifact_path" -C "$extract_dir" 2>/dev/null; then
-      error "Extraction failed"
-      debug "Retrying with verbose output:"
-      tar -xzf "$artifact_path" -C "$extract_dir" || exit 1
-    fi
+    exit 1
   fi
   
   # Verify extraction worked
-  debug "Checking extraction results..."
   if [ ! "$(ls -A "$extract_dir" 2>/dev/null)" ]; then
     error "Extraction failed or directory is empty: $extract_dir"
-    debug "Directory contents:"
-    ls -la "$extract_dir" || true
     exit 1
   fi
   
   # Check if files are in a subdirectory and move them up if needed
-  local content_count=$(find "$extract_dir" -mindepth 1 -maxdepth 1 | wc -l)
+  local content_count=$(find "$extract_dir" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)
   if [ "$content_count" -eq 1 ]; then
-    local single_item=$(find "$extract_dir" -mindepth 1 -maxdepth 1)
+    local single_item=$(find "$extract_dir" -mindepth 1 -maxdepth 1 2>/dev/null)
     if [ -d "$single_item" ]; then
       # If there's only one directory, move its contents up
       info "Moving contents from subdirectory to root level"
@@ -292,14 +258,29 @@ deploy_to_s3() {
   
   info "Starting deployment to S3 bucket: $S3_BUCKET"
   
+  # Verify build directory exists and has content
+  if [ ! -d "$build_dir" ]; then
+    error "Build directory does not exist: $build_dir"
+    exit 1
+  fi
+  
   # Verify bucket exists and is accessible
   if ! aws s3api head-bucket --bucket "$S3_BUCKET" --region "$AWS_REGION" 2>/dev/null; then
     error "Bucket $S3_BUCKET does not exist or access denied in region $AWS_REGION"
     exit 1
   fi
 
-  # Count files to be uploaded
-  local file_count=$(find "$build_dir" -type f | wc -l)
+  # Count files to be uploaded - FIX: Use absolute path and proper error handling
+  local file_count
+  file_count=$(find "$build_dir" -type f 2>/dev/null | wc -l)
+  
+  if [ "$file_count" -eq 0 ]; then
+    error "No files found in build directory: $build_dir"
+    debug "Directory contents:"
+    ls -la "$build_dir" 2>/dev/null || debug "Cannot list directory contents"
+    exit 1
+  fi
+  
   info "Deploying $file_count files to S3"
 
   # Backup current deployment (optional)
@@ -307,11 +288,7 @@ deploy_to_s3() {
 
   # Deploy files to S3
   info "Synchronizing files to S3..."
-  ls -l
-  pwd
-  echo $build_dir
-  cd /tmp
-  ls -l 
+  
   if [ "$DRY_RUN" == "true" ]; then
     info "[DRY RUN] Would synchronize files from $build_dir to s3://$S3_BUCKET/"
     if [ "$VERBOSE" == "true" ]; then
@@ -321,7 +298,8 @@ deploy_to_s3() {
     if [ "$VERBOSE" == "true" ]; then
       aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION"
     else
-      aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION" > /dev/null 2>&1
+      # Suppress progress output to prevent interference
+      aws s3 sync "$build_dir" "s3://$S3_BUCKET/" --delete --region "$AWS_REGION" --no-progress >/dev/null 2>&1
     fi
     
     success "Files deployed successfully to S3"
@@ -359,7 +337,7 @@ backup_current_deployment() {
     
     # Copy current deployment to backup
     if aws s3 sync "s3://$S3_BUCKET/" "s3://$backup_bucket/$backup_key/" \
-      --region "$AWS_REGION" > /dev/null 2>&1; then
+      --region "$AWS_REGION" --no-progress >/dev/null 2>&1; then
       success "Backup created at s3://$backup_bucket/$backup_key/"
       output_github "BACKUP_LOCATION" "s3://$backup_bucket/$backup_key/"
     else
@@ -376,15 +354,9 @@ invalidate_cloudfront() {
     info "[DRY RUN] Would invalidate CloudFront cache for paths: /*"
   else
     local invalidation_output
-    if [ "$VERBOSE" == "true" ]; then
-      invalidation_output=$(aws cloudfront create-invalidation \
-        --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
-        --paths "/*" 2>/dev/null)
-    else
-      invalidation_output=$(aws cloudfront create-invalidation \
-        --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
-        --paths "/*" 2>/dev/null)
-    fi
+    invalidation_output=$(aws cloudfront create-invalidation \
+      --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+      --paths "/*" 2>/dev/null)
     
     if [ $? -eq 0 ]; then
       local invalidation_id=$(echo "$invalidation_output" | jq -r '.Invalidation.Id' 2>/dev/null)
@@ -451,7 +423,7 @@ rollback_deployment() {
   else
     # Sync from backup (this will replace current files)
     aws s3 sync "s3://$backup_bucket/$backup_key/" "s3://$S3_BUCKET/" \
-      --delete --region "$AWS_REGION"
+      --delete --region "$AWS_REGION" --no-progress
     
     success "Rollback completed successfully"
     output_github "ROLLBACK_FROM" "s3://$backup_bucket/$backup_key/"
@@ -483,6 +455,12 @@ main() {
   
   # Download and extract
   local build_dir=$(download_artifact "$artifact_name")
+  
+  # Verify build_dir was returned and exists
+  if [ -z "$build_dir" ] || [ ! -d "$build_dir" ]; then
+    error "Failed to extract artifact or build directory not found"
+    exit 1
+  fi
   
   # Deploy
   deploy_to_s3 "$build_dir"

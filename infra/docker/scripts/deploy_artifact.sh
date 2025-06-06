@@ -172,7 +172,7 @@ download_artifact() {
   mkdir -p "$extract_dir"
   
   # Give it a moment and verify with absolute path
-  sleep 0.1
+  sleep 5
   if [ ! -d "$extract_dir" ]; then
     error "Failed to create extract directory: $extract_dir"
     debug "Current directory: $(pwd)"

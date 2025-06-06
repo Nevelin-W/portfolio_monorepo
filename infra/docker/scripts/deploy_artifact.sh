@@ -167,21 +167,54 @@ download_artifact() {
     exit 1
   fi
   
-  # Create extract directory with explicit path resolution
-  info "Creating extraction directory: $extract_dir"
-  mkdir -p "$extract_dir"
+  # Debug current environment
+  info "Current user: $(whoami)"
+  info "Current directory: $(pwd)"
+  info "/tmp permissions: $(ls -ld /tmp)"
   
-  # Give it a moment and verify with absolute path
-  sleep 30
-  if [ ! -d "$extract_dir" ]; then
-    error "Failed to create extract directory: $extract_dir"
-    debug "Current directory: $(pwd)"
-    debug "Directory listing of /tmp:"
-    ls -la /tmp/ || true
-    exit 1
+  # Create extract directory with explicit debugging
+  info "Creating extraction directory: $extract_dir"
+  
+  # Try to create directory and capture any errors
+  mkdir_output=$(mkdir -p "$extract_dir" 2>&1)
+  mkdir_exit_code=$?
+  
+  info "mkdir exit code: $mkdir_exit_code"
+  if [ -n "$mkdir_output" ]; then
+    info "mkdir output: $mkdir_output"
   fi
   
-  debug "Extract directory created successfully: $extract_dir"
+  # Check if directory exists immediately after mkdir
+  if [ -d "$extract_dir" ]; then
+    info "Directory exists after mkdir: YES"
+    info "Directory permissions: $(ls -ld "$extract_dir")"
+  else
+    error "Directory does not exist after mkdir: $extract_dir"
+    info "Contents of /tmp:"
+    ls -la /tmp/ || true
+    
+    # Try alternative approach - create with different path
+    local alt_extract_dir="/tmp/portfolio_extract_$$"
+    info "Trying alternative directory: $alt_extract_dir"
+    
+    if mkdir -p "$alt_extract_dir" 2>/dev/null && [ -d "$alt_extract_dir" ]; then
+      info "Alternative directory created successfully"
+      extract_dir="$alt_extract_dir"
+    else
+      error "Failed to create any extraction directory"
+      exit 1
+    fi
+  fi
+  
+  # Test write permissions
+  local test_file="$extract_dir/test_write"
+  if touch "$test_file" 2>/dev/null && [ -f "$test_file" ]; then
+    info "Write permissions confirmed"
+    rm -f "$test_file"
+  else
+    error "No write permissions in extraction directory"
+    exit 1
+  fi
   
   # Extract artifact - contains build files ready for deployment
   info "Extracting artifact to: $extract_dir"
@@ -222,7 +255,7 @@ download_artifact() {
     if [ -d "$single_item" ]; then
       # If there's only one directory, move its contents up
       info "Moving contents from subdirectory to root level"
-      local temp_dir="/tmp/artifact_temp"
+      local temp_dir="/tmp/artifact_temp_$$"
       mv "$single_item" "$temp_dir"
       rm -rf "$extract_dir"
       mv "$temp_dir" "$extract_dir"

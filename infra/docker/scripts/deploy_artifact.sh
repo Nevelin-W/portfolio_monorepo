@@ -169,8 +169,10 @@ download_artifact() {
   
   # Create extract directory and verify it exists
   mkdir -p "$extract_dir"
+  pwd
   ls -l
   cd /tmp
+  pwd
   ls -l
   if [ ! -d "$extract_dir" ]; then
     error "Failed to create extract directory: $extract_dir"

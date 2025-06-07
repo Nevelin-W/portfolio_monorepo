@@ -221,7 +221,7 @@ download_artifact() {
     if [ -d "$single_item" ]; then
       # If there's only one directory, move its contents up
       info "Moving contents from subdirectory to root level"
-      local temp_dir="/tmp/artifact_temp_$"
+      local temp_dir="/tmp/artifact_temp_$$"
       mv "$single_item" "$temp_dir"
       rm -rf "$extract_dir"
       mv "$temp_dir" "$extract_dir"
@@ -403,7 +403,7 @@ list_artifacts() {
   fi
 }
 
-# Rollback deployment
+# Rollback deployment - FIXED VERSION
 rollback_deployment() {
   local backup_key="$1"
   if [ -z "$backup_key" ]; then
@@ -415,8 +415,9 @@ rollback_deployment() {
   
   info "Rolling back deployment from backup: $backup_key"
   
-  # Verify backup exists
-      error "Backup not found: s3://$backup_bucket/$backup_key/"
+  # Verify backup exists - FIXED: Added proper if statement
+  if ! aws s3api head-object --bucket "$backup_bucket" --key "$backup_key" &>/dev/null; then
+    error "Backup not found: s3://$backup_bucket/$backup_key/"
     exit 1
   fi
   

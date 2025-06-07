@@ -10,6 +10,10 @@ on:
         description: 'Bucket where artifact is stored'
         required: true
         default: 'rksmits.com-artifacts-shared'
+      cloudfront_distribution:
+        description: 'Cloudfront id that deployment_bucket is linked to'
+        required: true
+        default: 'E8Y1ZN8UFOMUI'
       image_version:
         description: 'Version of docker image to use'
         required: true
@@ -97,7 +101,7 @@ jobs:
           S3_BUCKET="${{ github.event.inputs.deployment_bucket }}"
           
           # Determine CloudFront distribution ID
-          CLOUDFRONT_ID="${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }}"
+          CLOUDFRONT_ID="${{ github.event.inputs.cloudfront_distribution }}"
           
           # Determine artifact version/name
           ARTIFACT_VERSION="${{ github.event.inputs.artifact_version || inputs.artifact_version || 'latest' }}"

@@ -2,6 +2,10 @@ name: Deploy DEV Artifact
 on:
   workflow_dispatch:
     inputs:
+      deployment_bucket:
+        description: 'Bucket where artifact will be deployed'
+        required: true
+        default: 'dev.rksmits.com'
       image_version:
         description: 'Version of docker image to use'
         required: true
@@ -86,7 +90,7 @@ jobs:
           chmod 777 "$WORKSPACE_DIR"
           
           # Determine S3 bucket
-          S3_BUCKET="${{ secrets.DEV_S3_BUCKET }}"
+          S3_BUCKET="${{ github.event.inputs.deployment_bucket }}"
           
           # Determine CloudFront distribution ID
           CLOUDFRONT_ID="${{ secrets.DEV_CLOUDFRONT_DISTRIBUTION_ID }}"

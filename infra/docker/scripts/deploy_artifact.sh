@@ -143,7 +143,7 @@ verify_artifact_exists() {
   success "Artifact verification completed"
 }
 
-# Download and extract artifact
+# Download and extract artifact - FIXED VERSION
 download_artifact() {
   local artifact_name="$1"
   local artifact_path="/tmp/$artifact_name"
@@ -221,7 +221,7 @@ download_artifact() {
     if [ -d "$single_item" ]; then
       # If there's only one directory, move its contents up
       info "Moving contents from subdirectory to root level"
-      local temp_dir="/tmp/artifact_temp_$$"
+      local temp_dir="/tmp/artifact_temp_$"
       mv "$single_item" "$temp_dir"
       rm -rf "$extract_dir"
       mv "$temp_dir" "$extract_dir"
@@ -249,7 +249,10 @@ download_artifact() {
   fi
   
   success "Artifact extracted and ready for deployment"
-  echo "$extract_dir"
+  
+  # CRITICAL FIX: Ensure we return the extract_dir path
+  printf "%s" "$extract_dir"
+  return 0
 }
 
 # Deploy to S3
@@ -413,8 +416,7 @@ rollback_deployment() {
   info "Rolling back deployment from backup: $backup_key"
   
   # Verify backup exists
-  if ! aws s3 ls "s3://$backup_bucket/$backup_key/" > /dev/null 2>&1; then
-    error "Backup not found: s3://$backup_bucket/$backup_key/"
+      error "Backup not found: s3://$backup_bucket/$backup_key/"
     exit 1
   fi
   
@@ -433,7 +435,7 @@ rollback_deployment() {
   fi
 }
 
-# Main deployment function
+# Main deployment function - FIXED VERSION
 main() {
   info "Starting deployment process"
   info "Configuration:"
@@ -453,14 +455,56 @@ main() {
   local artifact_name=$(find_latest_artifact)
   verify_artifact_exists "$artifact_name"
   
-  # Download and extract
-  local build_dir=$(download_artifact "$artifact_name")
+  # Download and extract - FIXED: Proper error handling and variable capture
+  info "Downloading and extracting artifact..."
+  local build_dir
+  build_dir=$(download_artifact "$artifact_name")
+  local download_exit_code=$?
   
-  # Verify build_dir was returned and exists
-  if [ -z "$build_dir" ] || [ ! -d "$build_dir" ]; then
-    error "Failed to extract artifact or build directory not found"
+  # Check if download_artifact function succeeded
+  if [ $download_exit_code -ne 0 ]; then
+    error "download_artifact function failed with exit code: $download_exit_code"
     exit 1
   fi
+  
+  # Debug: Show what was captured
+  debug "build_dir variable contains: '$build_dir'"
+  
+  # Verify build_dir was returned and exists
+  if [ -z "$build_dir" ]; then
+    error "download_artifact did not return a build directory path"
+    debug "Checking for expected extraction directory: /tmp/artifact_extract"
+    if [ -d "/tmp/artifact_extract" ]; then
+      info "Found extraction directory, using it as fallback"
+      build_dir="/tmp/artifact_extract"
+    else
+      error "No extraction directory found"
+      debug "Contents of /tmp:"
+      ls -la /tmp/ | grep -E "(artifact|portfolio)" || debug "No artifact-related directories found"
+      exit 1
+    fi
+  fi
+  
+  # Trim any whitespace from build_dir
+  build_dir=$(echo "$build_dir" | tr -d '[:space:]')
+  
+  if [ ! -d "$build_dir" ]; then
+    error "Build directory does not exist: '$build_dir'"
+    debug "Available directories in /tmp:"
+    ls -la /tmp/ | grep artifact || debug "No artifact directories found"
+    exit 1
+  fi
+  
+  # Verify build directory has content
+  local file_count=$(find "$build_dir" -type f 2>/dev/null | wc -l)
+  if [ "$file_count" -eq 0 ]; then
+    error "Build directory is empty: $build_dir"
+    debug "Directory contents:"
+    ls -la "$build_dir" 2>/dev/null || debug "Cannot list directory contents"
+    exit 1
+  fi
+  
+  info "Build directory verified: $build_dir ($file_count files)"
   
   # Deploy
   deploy_to_s3 "$build_dir"

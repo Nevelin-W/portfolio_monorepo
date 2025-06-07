@@ -172,7 +172,7 @@ jobs:
           echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Deployed Artifact | ${{ steps.deploy.outputs.DEPLOYED_ARTIFACT }} |" >> $GITHUB_STEP_SUMMARY
           echo "| S3 Bucket | ${{ github.event.inputs.deployment_bucket }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| CloudFront Distribution | ${{ github.event.inputs.cloudfront_distribution_id || inputs.cloudfront_distribution_id || 'None' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CloudFront Distribution | ${{ github.event.inputs.cloudfront_distribution }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployment Status | ${{ steps.deploy.outputs.DEPLOYMENT_STATUS }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployment URL | ${{ steps.deploy.outputs.DEPLOYMENT_URL }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Dry Run | ${{ github.event.inputs.dry_run || inputs.dry_run || 'false' }} |" >> $GITHUB_STEP_SUMMARY

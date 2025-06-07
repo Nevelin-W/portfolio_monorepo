@@ -154,11 +154,11 @@ download_artifact() {
   # Clean up any existing files
   rm -rf "$artifact_path" "$extract_dir"
   
-  # Download from S3 with better output handling
+  # Download from S3 with proper output suppression
   if [ "$VERBOSE" == "true" ]; then
-    aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/$artifact_name" "$artifact_path"
+    aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/$artifact_name" "$artifact_path" >&2
   else
-    # Suppress AWS CLI progress output that was causing issues
+    # Completely suppress AWS CLI output to prevent contamination
     aws s3 cp "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/$artifact_name" "$artifact_path" --no-progress >/dev/null 2>&1
   fi
   
@@ -250,8 +250,8 @@ download_artifact() {
   
   success "Artifact extracted and ready for deployment"
   
-  # CRITICAL FIX: Ensure we return the extract_dir path
-  printf "%s" "$extract_dir"
+  # CRITICAL FIX: Output directory path as the last line to stdout
+  echo "$extract_dir"
   return 0
 }
 
@@ -456,11 +456,19 @@ main() {
   local artifact_name=$(find_latest_artifact)
   verify_artifact_exists "$artifact_name"
   
-  # Download and extract - FIXED: Proper error handling and variable capture
+  # Download and extract - FIXED: Use temp file to avoid command substitution issues
   info "Downloading and extracting artifact..."
-  local build_dir
-  build_dir=$(download_artifact "$artifact_name")
-  local download_exit_code=$?
+  local build_dir_file="/tmp/build_dir.txt"
+  
+  # Call function and save result to file to avoid stdout contamination
+  if download_artifact "$artifact_name" > "$build_dir_file" 2>&1; then
+    local build_dir=$(cat "$build_dir_file" 2>/dev/null | tail -1)
+    rm -f "$build_dir_file"
+    local download_exit_code=0
+  else
+    local download_exit_code=$?
+    rm -f "$build_dir_file"
+  fi
   
   # Check if download_artifact function succeeded
   if [ $download_exit_code -ne 0 ]; then

@@ -76,7 +76,7 @@ validate_parameters() {
     done
     exit 1
   fi
-
+}
 # Find latest artifact or use specified version
 artifact_name_handling() {
     # ARTIFACT_VERSION is already the full filename

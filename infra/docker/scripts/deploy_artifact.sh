@@ -4,14 +4,14 @@ set -eo pipefail
 # Default values
 S3_BUCKET=${S3_BUCKET}
 CLOUDFRONT_DISTRIBUTION_ID=${CLOUDFRONT_DISTRIBUTION_ID}
-AWS_REGION=${AWS_REGION:-"us-east-1"}
+AWS_REGION=${AWS_REGION}
 DRY_RUN=${DRY_RUN:-false}
 VERBOSE=${VERBOSE:-false}
 
 # Artifact configuration
 ARTIFACT_BUCKET=${ARTIFACT_BUCKET}
-ARTIFACT_PREFIX=${ARTIFACT_PREFIX:-"artifacts"}
-ARTIFACT_VERSION=${ARTIFACT_VERSION}  # Can be specific version or "latest"
+ARTIFACT_PREFIX=${ARTIFACT_PREFIX}
+ARTIFACT_VERSION=${ARTIFACT_VERSION}
 
 # GitHub Actions output support
 GITHUB_OUTPUT=${GITHUB_OUTPUT}
@@ -76,33 +76,9 @@ validate_parameters() {
     done
     exit 1
   fi
-  
-  # Validate S3 bucket name format
-  if [[ ! "$S3_BUCKET" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]]; then
-    error "Invalid S3 bucket name format: $S3_BUCKET"
-    exit 1
-  fi
-}
 
 # Find latest artifact or use specified version
-find_latest_artifact() {
-  if [ "$ARTIFACT_VERSION" == "latest" ]; then
-    info "Finding latest artifact..."
-    local latest_artifact=$(aws s3 ls "s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/" --recursive | \
-      grep "portfolio-.*\.tar\.gz" | \
-      sort -k1,2 | \
-      tail -1 | \
-      awk '{print $4}' | \
-      sed "s|^$ARTIFACT_PREFIX/||")
-    
-    if [ -z "$latest_artifact" ]; then
-      error "No portfolio artifacts found in s3://$ARTIFACT_BUCKET/$ARTIFACT_PREFIX/"
-      exit 1
-    fi
-    
-    info "Latest artifact found: $latest_artifact"
-    echo "$latest_artifact"
-  else
+artifact_name_handling() {
     # ARTIFACT_VERSION is already the full filename
     if [[ "$ARTIFACT_VERSION" == *.tar.gz ]]; then
       info "Using provided artifact filename: $ARTIFACT_VERSION"
@@ -113,7 +89,6 @@ find_latest_artifact() {
       info "Using versioned artifact: $versioned_artifact"
       echo "$versioned_artifact"
     fi
-  fi
 }
 
 # Verify artifact exists
@@ -453,7 +428,7 @@ main() {
   check_aws_credentials
   
   # Find and verify artifact
-  local artifact_name=$(find_latest_artifact)
+  local artifact_name=$(artifact_name_handling)
   verify_artifact_exists "$artifact_name"
   
   # Download and extract - FIXED: Use temp file to avoid command substitution issues
@@ -558,7 +533,7 @@ case "${1:-deploy}" in
     # Verify deployment without deploying
     validate_parameters
     check_aws_credentials
-    local artifact_name=$(find_latest_artifact)
+    local artifact_name=$(artifact_name_handling)
     verify_artifact_exists "$artifact_name"
     info "Verification completed successfully"
     ;;

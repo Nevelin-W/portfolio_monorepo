@@ -49,7 +49,7 @@ on:
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || inputs.image_version || 'latest' }}
-  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  AWS_REGION: 'us-east-1'
 
 # Add permissions for OIDC token
 permissions:

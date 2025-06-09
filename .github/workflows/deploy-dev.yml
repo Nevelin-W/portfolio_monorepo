@@ -25,17 +25,9 @@ on:
           - v0.0.1-20250601-175743
           - v0.0.3-20250601-115608
       artifact_version:
-        description: 'Artifact version to deploy (leave empty for latest)'
+        description: 'Artifact version to deploy'
         required: false
         type: string
-      artifact_name:
-        description: 'Specific artifact name (optional - overrides version)'
-        required: false
-        type: string
-      # s3_bucket:
-      #   description: 'S3 bucket for deployment'
-      #   required: true
-      #   type: string
       dry_run:
         description: 'Perform dry run (preview changes without deploying)'
         required: false

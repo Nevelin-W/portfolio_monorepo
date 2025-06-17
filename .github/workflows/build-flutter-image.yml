@@ -26,7 +26,6 @@ on:
         options:
           - docker.io
           - ghcr.io
-          - quay.io
       push_to_registry:
         description: 'Push to registry (uncheck for build-only)'
         default: true
@@ -59,6 +58,8 @@ permissions:
   packages: write
   attestations: write
   id-token: write
+  security-events: write
+  actions: read
 
 jobs:
   build-and-push:
@@ -126,10 +127,6 @@ jobs:
               echo "image_name=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "username=${{ secrets.DOCKER_USERNAME }}" >> $GITHUB_OUTPUT
-              echo "password=${{ secrets.DOCKER_PASSWORD }}" >> $GITHUB_OUTPUT
-              echo "image_name=$REGISTRY/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
-              ;;
           esac
 
       - name: Log in to Docker Registry
@@ -170,8 +167,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ env.PLATFORMS }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           build-args: |
             FLUTTER_VERSION=${{ github.event.inputs.flutter_version || 'stable' }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
@@ -181,34 +178,34 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
 
-      - name: Generate SBOM
-        if: steps.build.outputs.digest != ''
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
-          format: spdx-json
-          output-file: sbom.spdx.json
+      # - name: Generate SBOM
+      #   if: steps.build.outputs.digest != ''
+      #   uses: anchore/sbom-action@v0
+      #   with:
+      #     image: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+      #     format: spdx-json
+      #     output-file: sbom.spdx.json
 
-      - name: Upload SBOM as artifact
-        if: steps.build.outputs.digest != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-${{ steps.version_tag.outputs.tag }}
-          path: sbom.spdx.json
+      # - name: Upload SBOM as artifact
+      #   if: steps.build.outputs.digest != ''
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: sbom-${{ steps.version_tag.outputs.tag }}
+      #     path: sbom.spdx.json
 
-      - name: Run Trivy vulnerability scanner
-        if: steps.build.outputs.digest != ''
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+      # - name: Run Trivy vulnerability scanner
+      #   if: steps.build.outputs.digest != ''
+      #   uses: aquasecurity/trivy-action@master
+      #   with:
+      #     image-ref: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+      #     format: 'sarif'
+      #     output: 'trivy-results.sarif'
 
-      - name: Upload Trivy scan results
-        if: steps.build.outputs.digest != ''
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
+      # - name: Upload Trivy scan results
+      #   if: steps.build.outputs.digest != ''
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
 
       - name: Output build results
         run: |

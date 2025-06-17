@@ -2,6 +2,7 @@ output "bucket_name" {
   value = aws_s3_bucket.s3_bucket_01.id
 }
 
+
 output "bucket_regional_domain_name" {
   value = aws_s3_bucket.s3_bucket_01.bucket_regional_domain_name
 }

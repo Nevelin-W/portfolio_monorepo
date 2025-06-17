@@ -34,7 +34,7 @@ class ExperienceSection extends StatelessWidget {
 • Developed foundational skills in integration logic, agile teamwork, and cloud platforms.
 ''',
         techList: [
-          'MuleSoft', 'Dataweave', 'JSON', 'XML', 'MUnit', 'API Integration', 'OCI', 'Azure'
+          'MuleSoft', 'Dataweave', 'JSON', 'XML', 'MUnit', 'API Integration', 'RESTful APIs'
         ],
       ),
     ];

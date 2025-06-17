@@ -23,21 +23,21 @@ resource "aws_db_instance" "sonarqube" {
   db_subnet_group_name   = aws_db_subnet_group.sonarqube.name
   vpc_security_group_ids = [var.db_security_group_id]
   skip_final_snapshot    = true
-  
+
   # Enable storage autoscaling
   max_allocated_storage = var.max_allocated_storage
-  
+
   # Maintenance and backup settings
   backup_retention_period = var.environment == "prod" ? 7 : 1
   backup_window           = "03:00-04:00"
   maintenance_window      = "Mon:04:00-Mon:05:00"
-  
+
   # Performance insights
   performance_insights_enabled = var.environment == "prod" ? true : false
-  
+
   # Add parameter group if needed for specific PostgreSQL settings
   parameter_group_name = aws_db_parameter_group.sonarqube.name
-  
+
   tags = {
     Name        = "${var.environment}-sonarqube-db"
     Environment = var.environment
@@ -49,17 +49,17 @@ resource "aws_db_parameter_group" "sonarqube" {
   family = "postgres15"
 
   parameter {
-    name  = "max_connections"
-    value = "100"
+    name         = "max_connections"
+    value        = "100"
     apply_method = "pending-reboot"
   }
-  
+
   parameter {
-  name  = "shared_buffers"
-  value = "131072"
-  apply_method         = "pending-reboot"
-}
-  
+    name         = "shared_buffers"
+    value        = "131072"
+    apply_method = "pending-reboot"
+  }
+
   tags = {
     Name        = "${var.environment}-sonarqube-parameter-group"
     Environment = var.environment

@@ -59,13 +59,13 @@ resource "aws_s3_bucket_public_access_block" "artifacts" {
 # S3 bucket lifecycle configuration
 resource "aws_s3_bucket_lifecycle_configuration" "artifacts" {
   bucket = aws_s3_bucket.artifacts.id
-  
+
 
   rule {
     id     = "artifact_lifecycle"
     status = "Enabled"
     filter {
-        prefix = "artifacts/"
+      prefix = "artifacts/"
     }
 
     # Transition artifacts to IA after 30 days

@@ -18,85 +18,229 @@ on:
         default: 'infra/docker/Dockerfile'
         required: false
         type: string
+      registry:
+        description: 'Docker registry to push to'
+        default: 'docker.io'
+        required: false
+        type: choice
+        options:
+          - docker.io
+          - ghcr.io
+          - quay.io
+      push_to_registry:
+        description: 'Push to registry (uncheck for build-only)'
+        default: true
+        required: false
+        type: boolean
   # push:
   #   branches: [ main, master ]
   #   paths:
+  #     - 'infra/docker/**'
   #     - 'docker/**'
+  #     - 'lib/**'
+  #     - 'pubspec.yaml'
+  #     - '.github/workflows/docker-build.yml'
+  # pull_request:
+  #   branches: [ main, master ]
+  #   paths:
+  #     - 'infra/docker/**'
+  #     - 'docker/**'
+  #     - 'lib/**'
+  #     - 'pubspec.yaml'
+  #     - '.github/workflows/docker-build.yml'
 
 env:
-  REGISTRY: ${{ secrets.DOCKER_REGISTRY || 'docker.io' }}
-  IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME || 'flutter-container' }}
+  REGISTRY: ${{ github.event.inputs.registry || secrets.DOCKER_REGISTRY || 'docker.io' }}
+  IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME || github.repository }}
   PLATFORMS: linux/amd64,linux/arm64
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.version_tag.outputs.tag }}
+      image_digest: ${{ steps.build.outputs.digest }}
+      image_url: ${{ steps.build.outputs.image_url }}
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for proper git describe
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v3
         with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Log in to Docker Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+            network=host
 
       - name: Set image tag from version and date
         id: version_tag
         run: |
           VERSION_INPUT="${{ github.event.inputs.image_tag }}"
-          TZ="Europe/Helsinki"
-          DATE_TIME=$(TZ=$TZ date +'%d-%m-%Y-%H-%M')
-          FULL_TAG="${VERSION_INPUT}-${DATE_TIME}"
+          
+          # Use semantic versioning if not provided
+          if [[ "$VERSION_INPUT" == "v0.0.1" && "${{ github.event_name }}" == "push" ]]; then
+            VERSION_INPUT=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          fi
+          
+          # Create timestamp
+          TZ="UTC"
+          DATE_TIME=$(TZ=$TZ date +'%Y%m%d-%H%M%S')
+          
+          # Generate tags
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            FULL_TAG="pr-${{ github.event.number }}-${DATE_TIME}"
+          else
+            FULL_TAG="${VERSION_INPUT}-${DATE_TIME}"
+          fi
+          
           echo "tag=$FULL_TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION_INPUT" >> $GITHUB_OUTPUT
+          echo "Generated image tag: $FULL_TAG"
+
+      - name: Determine registry and credentials
+        id: registry_config
+        run: |
+          REGISTRY="${{ env.REGISTRY }}"
+          
+          case "$REGISTRY" in
+            "ghcr.io")
+              echo "username=${{ github.actor }}" >> $GITHUB_OUTPUT
+              echo "password=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_OUTPUT
+              echo "image_name=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+              ;;
+            "docker.io"|"")
+              echo "username=${{ secrets.DOCKER_USERNAME }}" >> $GITHUB_OUTPUT
+              echo "password=${{ secrets.DOCKER_PASSWORD }}" >> $GITHUB_OUTPUT
+              echo "image_name=${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "username=${{ secrets.DOCKER_USERNAME }}" >> $GITHUB_OUTPUT
+              echo "password=${{ secrets.DOCKER_PASSWORD }}" >> $GITHUB_OUTPUT
+              echo "image_name=$REGISTRY/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Log in to Docker Registry
+        if: github.event.inputs.push_to_registry != 'false' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ steps.registry_config.outputs.username }}
+          password: ${{ steps.registry_config.outputs.password }}
 
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.registry_config.outputs.image_name }}
           tags: |
             type=raw,value=${{ steps.version_tag.outputs.tag }}
-            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
+            type=ref,event=pr
+            type=sha,format=short
+            type=semver,pattern={{version}},value=${{ steps.version_tag.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version_tag.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Flutter Application
+            org.opencontainers.image.description=Flutter application container
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+            org.opencontainers.image.authors=${{ github.actor }}
+            flutter.version=${{ github.event.inputs.flutter_version || 'stable' }}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ github.event.inputs.dockerfile_path || './docker/Dockerfile' }}
-          push: true
+          file: ${{ github.event.inputs.dockerfile_path || 'infra/docker/Dockerfile' }}
+          push: ${{ github.event.inputs.push_to_registry != 'false' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
           platforms: ${{ env.PLATFORMS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             FLUTTER_VERSION=${{ github.event.inputs.flutter_version || 'stable' }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ github.sha }}
+          provenance: true
+          sbom: true
+        env:
+          DOCKER_BUILDKIT: 1
 
-      # Temp fix for https://github.com/docker/build-push-action/issues/252
-      - name: Move cache
+      - name: Generate SBOM
+        if: steps.build.outputs.digest != ''
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM as artifact
+        if: steps.build.outputs.digest != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ steps.version_tag.outputs.tag }}
+          path: sbom.spdx.json
+
+      - name: Run Trivy vulnerability scanner
+        if: steps.build.outputs.digest != ''
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        if: steps.build.outputs.digest != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Output build results
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          echo "::notice title=Build Complete::Docker image built successfully"
+          echo "Image: ${{ steps.registry_config.outputs.image_name }}"
+          echo "Tag: ${{ steps.version_tag.outputs.tag }}"
+          echo "Digest: ${{ steps.build.outputs.digest }}"
+          echo "Platforms: ${{ env.PLATFORMS }}"
+          
+          if [[ "${{ steps.build.outputs.digest }}" != "" ]]; then
+            echo "image_url=${{ steps.registry_config.outputs.image_name }}@${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Output Docker image tag
-        run: echo 'Docker image tag -> ${{ steps.version_tag.outputs.tag }}'
-        
+      - name: Create release (on tag push)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: sbom.spdx.json
+          body: |
+            ## Docker Image
+            
+            **Image:** `${{ steps.registry_config.outputs.image_name }}:${{ steps.version_tag.outputs.tag }}`
+            
+            **Digest:** `${{ steps.build.outputs.digest }}`
+            
+            **Platforms:** `${{ env.PLATFORMS }}`
+            
+            **Flutter Version:** `${{ github.event.inputs.flutter_version || 'stable' }}`
+            
+            ### Pull the image:
+            ```bash
+            docker pull ${{ steps.registry_config.outputs.image_name }}:${{ steps.version_tag.outputs.tag }}
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

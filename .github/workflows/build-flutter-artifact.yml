@@ -1,0 +1,117 @@
+# .github/workflows/build-artifact.yml
+name: Build Flutter Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 'Repository URL to clone'
+        required: true
+        default: 'https://github.com/Nevelin-W/portfolio_monorepo.git'
+        type: string
+      branch:
+        description: 'Branch to clone'
+        required: true
+        default: 'dev'
+        type: string
+      project_path:
+        description: 'Path to Flutter project within repository'
+        required: true
+        default: 'apps/myportfolio'
+        type: string
+      image_version:
+        description: 'Version of docker image to use'
+        required: true
+        default: 'latest'
+        type: choice
+        options:
+          - latest
+          - v0.0.1-12-05-2025-02-14
+          - v0.0.1-12-05-2025-01-45
+      custom_version:
+        description: 'Custom artifact version (optional)'
+        required: false
+        type: string
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || 'latest' }}
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    outputs:
+      artifact-version: ${{ steps.build.outputs.ARTIFACT_VERSION }}
+      artifact-name: ${{ steps.build.outputs.ARTIFACT_NAME }}
+      artifact-s3-key: ${{ steps.build.outputs.ARTIFACT_S3_KEY }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pull Flutter Docker image
+        run: docker pull ${{ env.DOCKER_IMAGE }}
+
+      - name: Generate version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+            VERSION="${{ github.event.inputs.custom_version }}"
+          else
+            VERSION="$(date +%Y%m%d-%H%M%S)-${{ github.run_number }}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+
+      - name: Build artifact in Docker container
+        id: build
+        run: |
+          # Create output file for capturing container outputs
+          OUTPUT_FILE=$(mktemp)
+          
+          docker run --rm \
+            -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
+            -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
+            -e AWS_REGION=${{ env.AWS_REGION }} \
+            -e ARTIFACT_BUCKET=${{ secrets.ARTIFACT_BUCKET }} \
+            -e REPO_URL=${{ github.event.inputs.repository }} \
+            -e REPO_BRANCH=${{ github.event.inputs.branch }} \
+            -e PROJECT_PATH=${{ github.event.inputs.project_path }} \
+            -e VERSION=${{ steps.version.outputs.VERSION }} \
+            -e VERBOSE=${{ github.event.inputs.verbose }} \
+            -e GITHUB_OUTPUT=/tmp/github_output \
+            -v $OUTPUT_FILE:/tmp/github_output \
+            ${{ env.DOCKER_IMAGE }} /usr/local/bin/build.sh
+          
+          # Read outputs from container
+          if [ -f "$OUTPUT_FILE" ]; then
+            cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create build summary
+        run: |
+          echo "## Build Completed Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Repository: ${{ github.event.inputs.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ github.event.inputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Project Path: ${{ github.event.inputs.project_path }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Image: ${{ env.DOCKER_IMAGE }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${{ steps.version.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifact: \`${{ steps.build.outputs.ARTIFACT_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- S3 Key: \`${{ steps.build.outputs.ARTIFACT_S3_KEY }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "Use the Deploy workflows to deploy this artifact to DEV, STAGING, or PRODUCTION environments." >> $GITHUB_STEP_SUMMARY

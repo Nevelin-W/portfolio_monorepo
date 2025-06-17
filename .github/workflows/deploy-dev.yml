@@ -1,0 +1,170 @@
+name: Deploy DEV Artifact
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_bucket:
+        description: 'Bucket where artifact will be deployed'
+        required: true
+        default: 'dev.rksmits.com'
+      artifact_bucket:
+        description: 'Bucket where artifact is stored'
+        required: true
+        default: 'rksmits.com-artifacts-shared'
+      cloudfront_distribution:
+        description: 'Cloudfront id that deployment_bucket is linked to'
+        required: true
+        default: 'E8Y1ZN8UFOMUI'
+      image_version:
+        description: 'Version of docker image to use'
+        required: true
+        type: choice
+        options:
+          - v0.0.1-20250603-093601
+          - v0.0.1-20250603-081426
+          - v0.0.1-20250602-220854
+          - v0.0.1-20250601-175743
+          - v0.0.3-20250601-115608
+      artifact_version:
+        description: 'Artifact version to deploy'
+        required: false
+        type: string
+      dry_run:
+        description: 'Perform dry run (preview changes without deploying)'
+        required: false
+        type: boolean
+        default: false
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME || 'username' }}/flutter-container:${{ github.event.inputs.image_version || inputs.image_version || 'latest' }}
+  AWS_REGION: 'us-east-1'
+
+# Add permissions for OIDC token
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      deployed-artifact: ${{ steps.deploy.outputs.DEPLOYED_ARTIFACT }}
+      deployment-status: ${{ steps.deploy.outputs.DEPLOYMENT_STATUS }}
+      deployment-url: ${{ steps.deploy.outputs.DEPLOYMENT_URL }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Configure AWS credentials for OIDC
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pull Flutter Docker image
+        run: docker pull ${{ env.DOCKER_IMAGE }}
+
+      - name: Make deployment script executable
+        run: chmod +x ./infra/docker/scripts/deploy_artifact.sh
+
+      - name: Deploy artifact in Docker container
+        id: deploy
+        run: |
+          # Create output directory and give full permissions
+          OUTPUT_DIR=$(mktemp -d)
+          chmod 777 "$OUTPUT_DIR"
+          
+          # Create the output file path
+          OUTPUT_FILE="$OUTPUT_DIR/github_output"
+          
+          # Create workspace directory
+          WORKSPACE_DIR=$(mktemp -d)
+          chmod 777 "$WORKSPACE_DIR"
+          
+          # Determine S3 bucket
+          S3_BUCKET="${{ github.event.inputs.deployment_bucket }}"
+          
+          # Determine CloudFront distribution ID
+          CLOUDFRONT_ID="${{ github.event.inputs.cloudfront_distribution }}"
+          
+          # Determine artifact version/name
+          ARTIFACT_VERSION="${{ github.event.inputs.artifact_version || inputs.artifact_version || 'latest' }}"
+          ARTIFACT_NAME="${{ github.event.inputs.artifact_name || inputs.artifact_name || '' }}"
+          
+          # Determine flags
+          DRY_RUN="${{ github.event.inputs.dry_run || inputs.dry_run || 'false' }}"
+          VERBOSE="${{ github.event.inputs.verbose || inputs.verbose || 'true' }}"
+          
+          echo "Deploying with configuration:"
+          echo "  S3 Bucket: $S3_BUCKET"
+          echo "  CloudFront ID: $CLOUDFRONT_ID"
+          echo "  Artifact Version: $ARTIFACT_VERSION"
+          echo "  Artifact Name: $ARTIFACT_NAME"
+          echo "  Dry Run: $DRY_RUN"
+          echo "  Verbose: $VERBOSE"
+          
+          # Run Docker container with mounted deployment script
+          docker run --rm \
+            -e AWS_ACCESS_KEY_ID \
+            -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_SESSION_TOKEN \
+            -e AWS_REGION=${{ env.AWS_REGION }} \
+            -e S3_BUCKET="$S3_BUCKET" \
+            -e CLOUDFRONT_DISTRIBUTION_ID="$CLOUDFRONT_ID" \
+            -e ARTIFACT_BUCKET="${{ github.event.inputs.artifact_bucket }}" \
+            -e ARTIFACT_PREFIX="artifacts" \
+            -e ARTIFACT_VERSION="$ARTIFACT_VERSION" \
+            -e DRY_RUN="$DRY_RUN" \
+            -e VERBOSE="$VERBOSE" \
+            -e GITHUB_OUTPUT="/tmp/output/github_output" \
+            -v "$OUTPUT_DIR:/tmp/output:rw" \
+            -v "$WORKSPACE_DIR:/workspace:rw" \
+            -v "$PWD/infra/docker/scripts/deploy_artifact.sh:/usr/local/bin/deploy_artifact.sh:ro" \
+            --workdir /workspace \
+            ${{ env.DOCKER_IMAGE }} /usr/local/bin/deploy_artifact.sh deploy
+          
+          # Read outputs from container
+          if [ -f "$OUTPUT_FILE" ]; then
+            cat "$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set default outputs if not provided by script
+          if ! grep -q "DEPLOYED_ARTIFACT=" "$OUTPUT_FILE" 2>/dev/null; then
+            if [ -n "$ARTIFACT_NAME" ]; then
+              echo "DEPLOYED_ARTIFACT=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+            else
+              echo "DEPLOYED_ARTIFACT=portfolio-$ARTIFACT_VERSION.tar.gz" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+          if ! grep -q "DEPLOYMENT_STATUS=" "$OUTPUT_FILE" 2>/dev/null; then
+            echo "DEPLOYMENT_STATUS=success" >> $GITHUB_OUTPUT
+          fi
+          
+          if ! grep -q "DEPLOYMENT_URL=" "$OUTPUT_FILE" 2>/dev/null; then
+            echo "DEPLOYMENT_URL=https://$S3_BUCKET.s3-website-${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_OUTPUT
+          fi
+          
+          # Clean up
+          rm -rf "$OUTPUT_DIR" "$WORKSPACE_DIR"
+
+      - name: Output deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployed Artifact | ${{ steps.deploy.outputs.DEPLOYED_ARTIFACT }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| S3 Bucket | ${{ github.event.inputs.deployment_bucket }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CloudFront Distribution | ${{ github.event.inputs.cloudfront_distribution }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Status | ${{ steps.deploy.outputs.DEPLOYMENT_STATUS }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment URL | ${{ steps.deploy.outputs.DEPLOYMENT_URL }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dry Run | ${{ github.event.inputs.dry_run || inputs.dry_run || 'false' }} |" >> $GITHUB_STEP_SUMMARY

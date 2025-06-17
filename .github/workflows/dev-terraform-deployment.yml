@@ -71,7 +71,7 @@ jobs:
             "${{ github.run_id }}" \
             "${{ github.actor }}" \
             "[DEV] Manual Approval Required for Terraform" \
-            "${{ github.workspace }}/infra/terraform/aws/webpage_infra/enviroments/dev/tfout"
+            "${{ github.workspace }}/${{ env.TF_WORKING_DIR }}"
         env:
            TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
             

@@ -10,43 +10,32 @@ class ExperienceSection extends StatelessWidget {
       const ExperienceItem(
         startDate: '04/2024',
         endDate: 'Present',
-        title: 'DevOps Engineer',
+        title: 'DevOps Engineer — Accenture Baltics',
         description: '''
-• Leading DevOps efforts for a government project, focusing on infrastructure automation and orchestration.
-• Using Ansible and Terraform to streamline provisioning and configuration across various environments.
-• Automating tasks with shell scripting and Python, enhancing operational efficiency.
+• Manage DevOps operations across Oracle Cloud Infrastructure (OCI) and Microsoft Azure.
+• Design and maintain CI/CD pipelines for deployments, provisioning, and artifact packaging.
+• Implement IaC using Terraform (OCI) and Bicep (Azure) to maintain consistent environments.
+• Migrate legacy infrastructure to modern solutions, enhancing maintainability and efficiency.
+• Develop custom monitoring and alerting solutions.
+• Collaborate with developers to streamline pipelines and enforce best practices.
 ''',
         techList: [
-          'Ansible', 'Terraform', 'Linux', 'Python', 'Git', 'Docker', 'Pipelines'
+          'Terraform', 'Bicep', 'CI/CD', 'OCI', 'Azure', 'Linux', 'Python', 'Shell Scripting', 'Docker', 'GitHub Actions', 'Azure DevOps'
         ],
       ),
       const ExperienceItem(
-        startDate: '10/2023',
-        endDate: '04/2024',
-        title: 'Cloud Integrations Developer (MuleSoft)',
-        description: '''
-• Developed and maintained MuleSoft integrations for an ad campaign automation project, interfacing with Google Ads, Facebook, and GDV360.
-• Implemented APIs and microservices to enable efficient data exchange between marketing platforms and internal systems.
-''',
-        techList: ['MuleSoft', 'Dataweave', 'JSON', 'XML', 'MUnit Tests', 'Google Ads API', 'Facebook API', 'GDV360'],
-      ),
-      const ExperienceItem(
-        startDate: '12/2022',
-        endDate: '10/2023',
-        title: 'Junior Cloud Integrations Developer (MuleSoft)',
-        description: '''
-• Contributed to the design and deployment of MuleSoft solutions for ad campaign automation.
-''',
-        techList: ['MuleSoft', 'Dataweave', 'JSON', 'XML', 'MUnit Tests'],
-      ),
-      const ExperienceItem(
         startDate: '04/2022',
-        endDate: '12/2022',
-        title: 'Cloud Integrations (MuleSoft)',
+        endDate: '04/2024',
+        title: 'Cloud Integration Developer — Accenture Baltics',
         description: '''
-• Assisted in a large-scale data migration project, gaining hands-on experience with MuleSoft integration tools.
+• Progressed from Intern to Junior Developer to Integration Developer over two years.
+• Built and maintained API integrations using MuleSoft for enterprise and ad automation systems.
+• Contributed to data migration and automation workflows across client projects.
+• Developed foundational skills in integration logic, agile teamwork, and cloud platforms.
 ''',
-        techList: ['MuleSoft', 'Dataweave', 'JSON', 'XML'],
+        techList: [
+          'MuleSoft', 'Dataweave', 'JSON', 'XML', 'MUnit', 'API Integration', 'OCI', 'Azure'
+        ],
       ),
     ];
 

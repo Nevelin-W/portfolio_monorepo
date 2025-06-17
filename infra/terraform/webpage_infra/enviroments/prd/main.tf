@@ -2,19 +2,19 @@ provider "aws" {
   region = var.region
 }
 
-module "s3" {
-  source        = "../../modules/s3"
+module "s3_webpage" {
+  source        = "../../modules/s3/webpage"
   bucket_name   = var.bucket_name
   bucket_policy = module.cloudfront.bucket_policy_document
-  environment   = "prd"
+  environment   = var.environment
 }
 
 module "cloudfront" {
   source                      = "../../modules/cloudfront"
   domain_name                 = var.domain_name
-  bucket_name                 = module.s3.bucket_name
-  bucket_regional_domain_name = module.s3.bucket_regional_domain_name
-  bucket_arn                  = module.s3.bucket_arn
+  bucket_name                 = module.s3_webpage.bucket_name
+  bucket_regional_domain_name = module.s3_webpage.bucket_regional_domain_name
+  bucket_arn                  = module.s3_webpage.bucket_arn
   acm_certificate_arn         = module.acm.certificate_arn
   region                      = var.region
   environment                 = "prd"

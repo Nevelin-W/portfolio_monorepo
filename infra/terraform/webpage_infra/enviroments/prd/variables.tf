@@ -4,6 +4,12 @@ variable "region" {
   default     = "us-east-1"
 }
 
+variable "environment" {
+  description = "Environment"
+  type        = string
+  default     = "prd"
+}
+
 variable "domain_name" {
   description = "Domain name for the website"
   type        = string

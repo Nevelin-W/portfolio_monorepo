@@ -10,15 +10,15 @@ module "s3_webpage" {
 }
 
 module "s3_artifacts" {
-  source        = "../../modules/s3/artifacts"
-  bucket_name   = var.bucket_name
-  project_name   = var.project_name
-  environment   = var.environment
-  github_org = var.github_org
-  github_repo = var.github_repo
-  region        = var.region
-  root_domain   = var.root_domain
-  bucket_arn                  = module.s3_webpage.bucket_arn
+  source       = "../../modules/s3/artifacts"
+  bucket_name  = var.bucket_name
+  project_name = var.project_name
+  environment  = var.environment
+  github_org   = var.github_org
+  github_repo  = var.github_repo
+  region       = var.region
+  root_domain  = var.root_domain
+  bucket_arn   = module.s3_webpage.bucket_arn
 }
 
 module "cloudfront" {
@@ -30,8 +30,8 @@ module "cloudfront" {
   acm_certificate_arn         = module.acm.certificate_arn
   region                      = var.region
   environment                 = var.environment
-  allowed_ips                 = var.allowed_ips  
-  allowed_cidrs               = var.allowed_cidrs 
+  allowed_ips                 = var.allowed_ips
+  allowed_cidrs               = var.allowed_cidrs
   debug_mode                  = var.debug
 }
 
@@ -56,18 +56,18 @@ module "vpc" {
 }
 
 module "sonarqube" {
-  source            = "../../modules/sonarqube"
-  ami_id            = var.ami_id
-  instance_type     = var.instance_type
-  key_name          = var.key_name
-  subnet_id         = module.vpc.public_subnet_ids[0]
-  security_group_id = module.sonarqube_security.security_group_sonar_id
+  source                    = "../../modules/sonarqube"
+  ami_id                    = var.ami_id
+  instance_type             = var.instance_type
+  key_name                  = var.key_name
+  subnet_id                 = module.vpc.public_subnet_ids[0]
+  security_group_id         = module.sonarqube_security.security_group_sonar_id
   iam_instance_profile_name = module.sonarqube_security.iam_instance_profile_name
-  volume_size       = var.volume_size
-  environment       = var.environment
-  hosted_zone_id    = module.acm.hosted_zone_id
-  domain_name       = var.domain_name
-  vpc_id            = module.vpc.vpc_id
+  volume_size               = var.volume_size
+  environment               = var.environment
+  hosted_zone_id            = module.acm.hosted_zone_id
+  domain_name               = var.domain_name
+  vpc_id                    = module.vpc.vpc_id
 }
 
 

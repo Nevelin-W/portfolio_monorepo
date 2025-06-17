@@ -50,7 +50,7 @@ variable "allowed_ips" {
   description = "List of allowed IP addresses for dev environment"
   type        = list(string)
   // Placeholder pwd pass actual via action secrets
-  default     = []
+  default = []
 }
 
 variable "allowed_cidrs" {
@@ -68,13 +68,13 @@ variable "debug" {
 variable "sonarqube_allowed_cidr_blocks" {
   description = "CIDR blocks allowed to access SonarQube"
   type        = list(string)
-  default     = ["0.0.0.0/0"]  # Open to all by default, but should be restricted
+  default     = ["0.0.0.0/0"] # Open to all by default, but should be restricted
 }
 
 variable "ssh_allowed_cidr_blocks" {
   description = "CIDR blocks allowed to SSH into the SonarQube instance"
   type        = list(string)
-  default     = ["0.0.0.0/0"]  # Open to all by default, but should be restricted
+  default     = ["0.0.0.0/0"] # Open to all by default, but should be restricted
 }
 
 variable "ami_id" {
@@ -92,7 +92,7 @@ variable "instance_type" {
 variable "key_name" {
   description = "SSH key name"
   type        = string
-  default = "sonarqube"
+  default     = "sonarqube"
 }
 
 variable "volume_size" {
@@ -117,7 +117,7 @@ variable "db_username" {
   description = "Username for the SonarQube database"
   type        = string
   sensitive   = true
-  default = "sonar_admin"
+  default     = "sonar_admin"
 }
 
 variable "db_password" {
@@ -157,7 +157,7 @@ variable "github_org" {
   description = "GitHub organization name"
   type        = string
   default     = "Nevelin-W"
-  
+
 }
 
 variable "github_repo" {

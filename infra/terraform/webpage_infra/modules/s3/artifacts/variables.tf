@@ -20,18 +20,18 @@ variable "environment" {
 }
 
 variable "project_name" {
-  type        = string
+  type = string
 }
 
 
 variable "root_domain" {
-  type        = string
+  type = string
 }
 
 variable "github_org" {
   description = "GitHub organization name"
   type        = string
-  
+
 }
 
 variable "github_repo" {

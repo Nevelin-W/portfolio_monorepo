@@ -194,7 +194,7 @@ resource "aws_iam_policy" "artifact_management" {
         ]
         Resource = [
           aws_s3_bucket.artifacts.arn,
-          var.bucket_arn
+          var.bucket_arn,
           "arn:aws:s3:::rksmits.com"
         ]
       },
@@ -211,7 +211,7 @@ resource "aws_iam_policy" "artifact_management" {
         ]
         Resource = [
           "${aws_s3_bucket.artifacts.arn}/*",
-          "${var.bucket_arn}/*"
+          "${var.bucket_arn}/*",
           "arn:aws:s3:::rksmits.com/*"
         ]
       },

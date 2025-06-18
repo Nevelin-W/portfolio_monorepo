@@ -60,6 +60,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: dev
           fetch-depth: 0
 
       # Configure AWS credentials for OIDC

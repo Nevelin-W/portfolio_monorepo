@@ -1,11 +1,11 @@
-name: Deploy DEV
+name: Deploy PRD
 on:
   workflow_dispatch:
     inputs:
       deployment_bucket:
         description: 'Bucket where artifact will be deployed'
         required: true
-        default: 'dev.rksmits.com'
+        default: 'rksmits.com'
       artifact_bucket:
         description: 'Bucket where artifact is stored'
         required: true
@@ -13,7 +13,7 @@ on:
       cloudfront_distribution:
         description: 'Cloudfront id that deployment_bucket is linked to'
         required: true
-        default: 'E8Y1ZN8UFOMUI'
+        default: 'E31Y21RP4JYME0'
       image_version:
         description: 'Version of docker image to use'
         required: true
@@ -60,7 +60,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: main
           fetch-depth: 0
 
       # Configure AWS credentials for OIDC
